@@ -1,5 +1,5 @@
-.include analog.lib
-.include ad633.cir
+.include Subcircuits/analog.lib
+.include Subcircuits/ad633.cir
 V1 Input_Amplifier_StageOA1Out 0 DC 2
 VDD VDD 0 DC 10
 XNL1 Input_Amplifier_StageOA1Out Non-LinearityNLA1Out Non-LinearityNLA1Out Input_Amplifier_StageVDD Non-LinearityVNeg AD712_AD
@@ -16,10 +16,3 @@ RV5 0 Non-LinearityMult3Y2 1k
 XNL3 Non-LinearityNLA3Pos Non-LinearityNLA3Neg NLOut Input_Amplifier_StageVDD Non-LinearityVNeg AD712_AD
 RV6 Non-LinearityMult3Y2 Non-LinearityVNeg 57k
 XM3 Non-LinearityNLOut 0 Non-LinearityMult2Out Non-LinearityMult3Y2 Non-LinearityVNeg 0 Non-LinearityNLA3Neg VDD AD633AN
-
-.control
-dc v1 -10 10 1m
-wrdata Output/outputData.txt V(Non-LinearityNLOut)
-exit
-.endc
-.end
