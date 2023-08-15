@@ -1,0 +1,6 @@
+.title KiCad schematic
+R2 Middle GND 1000
+R1 VIn Middle 1000
+V1 VIn GND DC 1 
+.op
+.end

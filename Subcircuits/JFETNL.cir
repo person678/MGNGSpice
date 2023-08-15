@@ -1,0 +1,9 @@
+.model __J2 PJF
+.model __Q1 NJF
+RNL1 Non-LinearityOA1Pos 0 800
+XNL Non-LinearityOA1Pos Non-LinearityOA2Neg IntegratorIntIn VDD 0 AD712
+RNLF2 0 Non-LinearityOA2Neg 1k
+RNLF1 Non-LinearityOA2Neg IntegratorIntIn 4k
+R5 Input_Amplifier_StageOA1Out Non-LinearityNSource 100
+J2 Non-LinearityDrain Non-LinearityNSource Non-LinearityOA1Pos __J2
+JQ1 Non-LinearityDrain Non-LinearityOA1Pos Non-LinearityNSource __Q1

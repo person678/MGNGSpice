@@ -1,0 +1,14 @@
+XU1 /Input_Amplifier_Stage/OA1Out /Non-Linearity/NLA1Out /Non-Linearity/NLA1Out /Input_Amplifier_Stage/VDD /Non-Linearity/VNeg OPAMP
+U4 __U4
+RV1 /Non-Linearity/RtoPot /Non-Linearity/NLA3Pos 10k
+RV2 /Non-Linearity/NLA3Pos 0 10k
+RV4 /Non-Linearity/NLA2Pos 0 10k
+XU2 /Non-Linearity/NLA2Pos /Non-Linearity/NLA1Out /Non-Linearity/Multi1In /Input_Amplifier_Stage/VDD /Non-Linearity/VNeg OPAMP
+R5 /Non-Linearity/RtoPot /Non-Linearity/NLA1Out 56k
+RV3 /Non-Linearity/Multi1In /Non-Linearity/NLA2Pos 10k
+U6 __U6
+V3 /Non-Linearity/VNeg 0 DC -10 
+RV5 0 /Non-Linearity/Mult3Y2 1k
+XU3 /Non-Linearity/NLA3Pos /Non-Linearity/NLA3Neg NLOut /Input_Amplifier_Stage/VDD /Non-Linearity/VNeg OPAMP
+RV6 /Non-Linearity/Mult3Y2 /Non-Linearity/VNeg 57k
+U5 __U5

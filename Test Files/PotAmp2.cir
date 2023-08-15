@@ -1,0 +1,8 @@
+.title KiCad schematic
+.tran 1s 2s
+V1 Power 0 DC 5 
+R1 Power Middle 1000
+R2 Middle 0 1000
+V2 12 0 DC 12 
+XU1 Middle Output Output 12 0 AD712
+.end
