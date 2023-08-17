@@ -54,10 +54,10 @@ class Simulation:
     def runSim(self):
         path = self.append_control("Subcircuits/PabloNL.cir", self.control)
         command = ["ngspice", path]
-        subprocess.run(command)\
+        subprocess.run(command)
         
 
-nodes = ["NLOut", "Non-LinearityNLA1Out"]
+nodes = ["VIn", "NLOut"]
 sim = Simulation(nodes, "dc v1 -10 10 1m")
 sim.runSim()
 # Run NgSpice simulation
@@ -66,7 +66,7 @@ sim.runSim()
 data = np.loadtxt('Output/outputData.txt')
 
 # Calculate the number of plots
-num_plots = data.shape[1] // 2
+num_plots = len(nodes)
 
 # Configure plot bounds (change these values as needed)
 x_min = -10
@@ -81,19 +81,17 @@ plt.figure(figsize=(10, 6))
 for i in range(num_plots):
     x = data[:, 2*i]
     y = data[:, 2*i + 1]
-    plt.plot(x, y, label=f'Plot {i+1}')
+    plt.plot(x, y, label=nodes[i])
 
 # Set bounds for the plot
 plt.xlim([x_min, x_max])
 plt.ylim([y_min, y_max])
 
-
-
 plt.xlabel('X Values')
 plt.ylabel('Y Values')
 plt.title('Multiple Plots')
 plt.grid(True)
-plt.legend(nodes)
+plt.legend()
 
 # Display the plot
 plt.show()
