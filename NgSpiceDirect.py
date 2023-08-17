@@ -24,6 +24,8 @@ class Simulation:
         print(wrdata_str)
         self.netlist = "Subcircuits/temp/" + netlist + temp_id + ".cir"
         circuit = SpiceParser("Subcircuits/PabloNL.cir").build_circuit()
+        circuit.include("Subcircuits/ad633.cir")
+        circuit.include("Subcircuits/analog.lib")
         print(circuit)
         with open(self.netlist, "w") as file: 
             file.write(str(circuit))
