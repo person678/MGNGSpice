@@ -1,6 +1,6 @@
 .include Subcircuits/analog.lib
 .include Subcircuits/ad633.cir
-
+* THIS WORKS
 V1 VIn 0 DC 2
 VDD VDD 0 DC 10
 XNL1 VIn NLA1Out VDD VNeg NLA1Out AD712_AD
