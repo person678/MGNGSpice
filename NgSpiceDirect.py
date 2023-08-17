@@ -5,13 +5,28 @@ import matplotlib.pyplot as plt
 
 import tempfile
 import shutil
+import random
 
+from multiprocessing import Pool
+from PySpice.Spice.Netlist import Circuit
+from PySpice.Spice.Parser import SpiceParser
+
+def worker(params):
+    nodes, command = params
+    sim = Simulation(nodes, command, "PabloNL")
+    sim.runSim()
 class Simulation: 
     
-    def __init__(self, nodes, simCommand):
+    def __init__(self, nodes, simCommand, netlist):
         nodes_str = "" .join(["V(" + node + ")" for node in nodes])
-        wrdata_str = "wrdata Output/outputData.txt " + nodes_str
+        temp_id = str(random.randint(1, 100000))
+        wrdata_str = "wrdata Output/outputData" + temp_id + ".txt " + nodes_str
         print(wrdata_str)
+        self.netlist = "Subcircuits/temp/" + netlist + temp_id + ".cir"
+        circuit = SpiceParser("Subcircuits/PabloNL.cir").build_circuit()
+        print(circuit)
+        with open(self.netlist, "w") as file: 
+            file.write(str(circuit))
 
         self.control = [
             ".control", 
@@ -21,6 +36,9 @@ class Simulation:
             ".endc", 
             ".end"
         ]
+
+    def setA(a):
+        test = 5
     
     def append_control(self, filename, content_list):
         """
@@ -50,48 +68,52 @@ class Simulation:
         temp_file.close()
 
         return temp_file_path
+    
 
     def runSim(self):
-        path = self.append_control("Subcircuits/PabloNL.cir", self.control)
+        path = self.append_control(self.netlist, self.control)
         command = ["ngspice", path]
         subprocess.run(command)
         
 
-nodes = ["VIn", "NLOut"]
-sim = Simulation(nodes, "dc v1 -10 10 1m")
-sim.runSim()
+if __name__ == "__main__":
+    nodes = ["VIn"]
+    parameters = [
+        (nodes, "dc v1 -5 5 1m"), 
+    ]
 # Run NgSpice simulation
+    with Pool(processes=3) as pool:
+        pool.map(worker, parameters)
 
+# data = np.loadtxt('Output/outputData.txt')
 
-data = np.loadtxt('Output/outputData.txt')
+# # Calculate the number of plots
+# num_plots = len(nodes)
 
-# Calculate the number of plots
-num_plots = len(nodes)
+# # Configure plot bounds (change these values as needed)
+# x_min = -10
+# x_max = 10
+# y_min = -10
+# y_max = 10
 
-# Configure plot bounds (change these values as needed)
-x_min = -10
-x_max = 10
-y_min = -10
-y_max = 10
+# # Create a plot
+# plt.figure(figsize=(10, 6))
 
-# Create a plot
-plt.figure(figsize=(10, 6))
+# # Iterate over each pair of columns and plot them
+# for i in range(num_plots):
+#     x = data[:, 2*i]
+#     y = data[:, 2*i + 1]
+#     plt.plot(x, y, label=nodes[i])
 
-# Iterate over each pair of columns and plot them
-for i in range(num_plots):
-    x = data[:, 2*i]
-    y = data[:, 2*i + 1]
-    plt.plot(x, y, label=nodes[i])
+# # Set bounds for the plot
+# plt.xlim([x_min, x_max])
+# plt.ylim([y_min, y_max])
 
-# Set bounds for the plot
-plt.xlim([x_min, x_max])
-plt.ylim([y_min, y_max])
+# plt.xlabel('X Values')
+# plt.ylabel('Y Values')
+# plt.title('Multiple Plots')
+# plt.grid(True)
+# plt.legend()
 
-plt.xlabel('X Values')
-plt.ylabel('Y Values')
-plt.title('Multiple Plots')
-plt.grid(True)
-plt.legend()
-
-# Display the plot
-plt.show()
+# # Display the plot
+# plt.show()
