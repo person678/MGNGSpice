@@ -1,0 +1,151 @@
+function [linearMCConfig] = calculateLinearMC(gainInput, gainTransferFunction, SimulationConfig, MetricConfig)
+
+%% Seed Random
+rng(1,'twister'); 
+
+%% How many simulations should run at a time?
+%ParallelRuns = 100;
+
+%% Assign parameters from metric config to testing config
+% Washout length
+linearMCConfig.washOut = MetricConfig.washOut;
+
+% Error Type
+linearMCConfig.errorType = MetricConfig.errorType;
+
+% Portion of Data to Train on
+linearMCConfig.trainingSize = MetricConfig.trainingSize;
+
+% What masking procedure should be used
+linearMCConfig.maskingType = MetricConfig.maskingType;
+
+% Write parameters to output config
+linearMCConfig.memoryWidth = MetricConfig.memoryExtraVectors_MC + SimulationConfig.nodes;
+linearMCConfig.lengthInputVector_MC = MetricConfig.lengthInputVector_MC;
+
+%% Generate input vectors
+ 
+% Generate large set of random input vectors
+inputVectorData = 2*rand(linearMCConfig.memoryWidth,MetricConfig.lengthInputVector_MC+1+linearMCConfig.memoryWidth)-1; % Raw data
+ 
+% Add memory to input vectors
+inputVectorMemory = inputVectorData(linearMCConfig.memoryWidth+1:MetricConfig.lengthInputVector_MC+linearMCConfig.memoryWidth)'; % Negates first "n_outputs", then takes data_length samples
+
+%% Create target data
+for i = 1:linearMCConfig.memoryWidth
+     ouputVectorMemory(:,i) = inputVectorData(linearMCConfig.memoryWidth+1-i:MetricConfig.lengthInputVector_MC+linearMCConfig.memoryWidth-i);
+ 
+ end
+
+%% Seperate inputVector into training and testing datasets
+inputVectorMemory = repmat(inputVectorMemory(1:MetricConfig.lengthInputVector_MC,:),1,linearMCConfig.memoryWidth);
+
+%% Seperate outputVector into training and testing datasets
+outputVectorMemory_Training = ouputVectorMemory(1:MetricConfig.lengthInputVector_MC*linearMCConfig.trainingSize,:);
+outputVectorMemory_Testing = ouputVectorMemory(1+MetricConfig.lengthInputVector_MC*linearMCConfig.trainingSize:end,:);
+
+%% Mask Input Vectors
+for i = 1:linearMCConfig.memoryWidth
+    % Mask with settings of previous experiment
+	inputVectorMemory_Masked(:,i) = timeMultiplexing(inputVectorMemory(:,i), length(inputVectorMemory(:,i)), SimulationConfig.nodes, linearMCConfig.maskingType, SimulationConfig.maskingOffset);
+end
+
+%% Create config for Simulink Simulation
+
+% Set constant variables
+config.theta = SimulationConfig.maskingPeriod;
+config.tau = SimulationConfig.signalPeriod;
+config.Timescale = SimulationConfig.Timescale;
+config.simulationTimeStep = SimulationConfig.simulationTimeStep;
+
+% Set parameter variables
+config.InputScalling = gainInput;
+config.TransferFunctionGain = gainTransferFunction;
+
+% Calculate simulation time
+config.simulinkTime = SimulationConfig.signalPeriod*length(inputVectorMemory);
+
+%% Create singal timing for input data vectors
+InputSignalTime = (0:SimulationConfig.maskingPeriod:config.simulinkTime-SimulationConfig.maskingPeriod)';
+
+%% Create simulation profiles for input training vectors
+for j = 1:linearMCConfig.memoryWidth
+
+    % Set simulation model
+    in(j) = Simulink.SimulationInput('DFR_TimescaleModel_ParaSweep');
+
+    % Set config with static simulation variables
+    in(j) = in(j).setVariable('config',config);
+
+    % Set gain parameters
+    in(j) = in(j).setVariable('InputScalling',config.InputScalling);
+    in(j) = in(j).setVariable('TransferFunctionGain',config.TransferFunctionGain);
+
+	% Apply input vector to simulation
+	config.DFR_Input = [InputSignalTime(:),inputVectorMemory_Masked(:,j)];
+	in(j) = in(j).setVariable('DFR_Input',config.DFR_Input);
+end
+
+%$ Run simulations and colate outputs
+out = parsim(in,'ShowSimulationManager','off','ShowProgress','on','UseFastRestart','on');
+
+%% Perform training on the input vectors
+for k = 1:linearMCConfig.memoryWidth
+
+	% Extract DFR output from Simulink model
+	stateMatrix = out(k).DFR_Out.signals.values;
+
+	%% Generate train and testing state matrix
+	% Remove 
+	trainStateMatrix = stateMatrix((linearMCConfig.washOut*SimulationConfig.nodes)+1:linearMCConfig.lengthInputVector_MC*SimulationConfig.nodes*linearMCConfig.trainingSize);
+	testStateMatrix = stateMatrix(linearMCConfig.lengthInputVector_MC*SimulationConfig.nodes*linearMCConfig.trainingSize+1:end-1);
+
+	% Reshape state matrix into state matrix format
+	trainStateMatrix = reshape(trainStateMatrix, SimulationConfig.nodes, []);
+	testStateMatrix = reshape(testStateMatrix, SimulationConfig.nodes, []);
+
+	% Get corosponding target output vector and apply washout
+	targetOutput = outputVectorMemory_Training(:,k);
+	targetOutput = targetOutput((linearMCConfig.washOut)+1:end);
+
+	% Calculate weights
+	Weights = trainFuncs(trainStateMatrix,targetOutput);
+
+	% Generate the trained output
+	trainedOutput(:,k) = trainStateMatrix'*Weights';
+	testingOutput(:,k) = testStateMatrix'*Weights';
+
+	% Calculate error
+	linearMCConfig.trainingError(k) = calculateError(trainedOutput(:,k),targetOutput, linearMCConfig);
+	linearMCConfig.testingError(k) = calculateError(testingOutput(:,k),outputVectorMemory_Testing(:,k), linearMCConfig);
+end
+
+%%
+MC_k= 0; Cm = 0; 
+test_in_var = inputVectorMemory(1+MetricConfig.lengthInputVector_MC*linearMCConfig.trainingSize:end,1);
+targVar = 1/(length(test_in_var)-1) * sum((test_in_var-mean(test_in_var)).*(test_in_var-mean(test_in_var)));
+
+%% 
+for l = 1:linearMCConfig.memoryWidth
+       
+    coVar = 1/(length(testingOutput(:,l))-1) * sum((outputVectorMemory_Testing(1:end,l)-mean(outputVectorMemory_Testing(1:end,l)))...
+       .*(testingOutput(:,l)-mean(testingOutput(:,l))));    
+    outVar = 1/(length(testingOutput(:,l))-1) * sum((testingOutput(:,l)-mean(testingOutput(:,l))).*(testingOutput(:,l)-mean(testingOutput(:,l))));    
+    totVar = (outVar*targVar(1));    
+    MC_k(l) = (coVar*coVar)/totVar;
+    
+    %remove low values from measure
+    if MC_k(l) <= 0.1
+        MC_k(l) = 0;
+    end
+end
+
+%% 
+MC_k(isnan(MC_k)) = 0;
+MC = sum(MC_k);
+
+%% 
+linearMCConfig.graphLinearMemoryCapacity = MC_k;
+linearMCConfig.calculatedLinearMemoryCapacity = MC;
+
+disp("Linear MC Run Finished");

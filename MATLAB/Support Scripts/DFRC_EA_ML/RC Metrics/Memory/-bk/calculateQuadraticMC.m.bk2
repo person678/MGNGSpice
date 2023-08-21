@@ -1,0 +1,153 @@
+function [quadraticMCConfig] = calculateQuadraticMC(gainInput, gainTransferFunction, SimulationConfig, MetricConfig)
+
+%% Seed Random
+rng(1,'twister'); 
+
+%% How many simulations should run at a time?
+%ParallelRuns = 100;
+
+%% Assign parameters from metric config to testing config
+% Washout length
+quadraticMCConfig.washOut = MetricConfig.washOut;
+
+% Error Type
+quadraticMCConfig.errorType = MetricConfig.errorType;
+
+% Portion of Data to Train on
+quadraticMCConfig.trainingSize = MetricConfig.trainingSize;
+
+% What masking procedure should be used
+quadraticMCConfig.maskingType = MetricConfig.maskingType;
+
+% Write parameters to output config
+quadraticMCConfig.memoryWidth = MetricConfig.memoryScallar_MC * SimulationConfig.nodes;
+quadraticMCConfig.lengthInputVector_MC = MetricConfig.lengthInputVector_MC;
+
+%% Generate input vectors
+ 
+% Generate large set of random input vectors
+inputVectorData = 2*rand(quadraticMCConfig.memoryWidth,MetricConfig.lengthInputVector_MC+1+quadraticMCConfig.memoryWidth)-1; % Raw data
+ 
+% Add memory to input vectors
+inputVectorMemory = inputVectorData(quadraticMCConfig.memoryWidth+1:MetricConfig.lengthInputVector_MC+quadraticMCConfig.memoryWidth)'; % Negates first "n_outputs", then takes data_length samples
+
+%% Create target data
+for i = 1:quadraticMCConfig.memoryWidth
+     value = inputVectorData(quadraticMCConfig.memoryWidth+1-i:MetricConfig.lengthInputVector_MC+quadraticMCConfig.memoryWidth-i);
+     ouputVectorMemory(:,i) = (2.*(value.^2)) - 1; 
+ end
+
+%% Seperate inputVector into training and testing datasets
+inputVectorMemory = repmat(inputVectorMemory(1:MetricConfig.lengthInputVector_MC,:),1,quadraticMCConfig.memoryWidth);
+
+%% Seperate outputVector into training and testing datasets
+outputVectorMemory_Training = ouputVectorMemory(1:MetricConfig.lengthInputVector_MC*quadraticMCConfig.trainingSize,:);
+outputVectorMemory_Testing = ouputVectorMemory(1+MetricConfig.lengthInputVector_MC*quadraticMCConfig.trainingSize:end,:);
+
+%% Mask Input Vectors
+for i = 1:quadraticMCConfig.memoryWidth
+    % Mask with settings of previous experiment
+    inputVectorMemory_Masked(:,i) = timeMultiplexing(inputVectorMemory(:,i), length(inputVectorMemory(:,i)), SimulationConfig.nodes, quadraticMCConfig.maskingType, SimulationConfig.maskingOffset);
+end
+
+%% Create config for Simulink Simulation
+
+% Set constant variables
+config.theta = SimulationConfig.maskingPeriod;
+config.tau = SimulationConfig.signalPeriod;
+config.Timescale = SimulationConfig.Timescale;
+config.simulationTimeStep = SimulationConfig.simulationTimeStep;
+
+% Set parameter variables
+config.InputScalling = gainInput;
+config.TransferFunctionGain = gainTransferFunction;
+
+% Calculate simulation time
+config.simulinkTime = SimulationConfig.signalPeriod*length(inputVectorMemory);
+
+%% Create singal timing for input data vectors
+InputSignalTime = (0:SimulationConfig.maskingPeriod:config.simulinkTime-SimulationConfig.maskingPeriod)';
+
+%% Create simulation profiles for input training vectors
+for j = 1:quadraticMCConfig.memoryWidth
+
+    % Set simulation model
+    in(j) = Simulink.SimulationInput('DFR_TimescaleModel_ParaSweep');
+
+    % Set config with static simulation variables
+    in(j) = in(j).setVariable('config',config);
+
+    % Set gain parameters
+    in(j) = in(j).setVariable('InputScalling',config.InputScalling);
+    in(j) = in(j).setVariable('TransferFunctionGain',config.TransferFunctionGain);
+
+    % Apply input vector to simulation
+	config.DFR_Input = [InputSignalTime(:),inputVectorMemory_Masked(:,j)];
+	in(j) = in(j).setVariable('DFR_Input',config.DFR_Input);
+
+end
+
+%$ Run simulations and colate outputs
+out = parsim(in,'ShowSimulationManager','off','ShowProgress','on','UseFastRestart','on');
+
+
+%% Perform training on the input vectors
+for k = 1:quadraticMCConfig.memoryWidth
+
+	% Extract DFR output from Simulink model
+	stateMatrix = out(k).DFR_Out.signals.values;
+
+	%% Generate train and testing state matrix
+	% Remove 
+	trainStateMatrix = stateMatrix((quadraticMCConfig.washOut*SimulationConfig.nodes)+1:quadraticMCConfig.lengthInputVector_MC*SimulationConfig.nodes*quadraticMCConfig.trainingSize);
+	testStateMatrix = stateMatrix(quadraticMCConfig.lengthInputVector_MC*SimulationConfig.nodes*quadraticMCConfig.trainingSize+1:end-1);
+
+	% Reshape state matrix into state matrix format
+	trainStateMatrix = reshape(trainStateMatrix, SimulationConfig.nodes, []);
+	testStateMatrix = reshape(testStateMatrix, SimulationConfig.nodes, []);
+
+	% Get corosponding target output vector and apply washout
+	targetOutput = outputVectorMemory_Training(:,k);
+	targetOutput = targetOutput((quadraticMCConfig.washOut)+1:end);
+
+	% Calculate weights
+	Weights = trainFuncs(trainStateMatrix,targetOutput);
+
+	% Generate the trained output
+	trainedOutput(:,k) = trainStateMatrix'*Weights';
+	testingOutput(:,k) = testStateMatrix'*Weights';
+
+	% Calculate error
+	quadraticMCConfig.trainingError(k) = calculateError(trainedOutput(:,k),targetOutput, quadraticMCConfig);
+	quadraticMCConfig.testingError(k) = calculateError(testingOutput(:,k),outputVectorMemory_Testing(:,k), quadraticMCConfig);
+end
+
+%%
+MC_k= 0; Cm = 0; 
+test_in_var = inputVectorMemory(1+MetricConfig.lengthInputVector_MC*quadraticMCConfig.trainingSize:end,1);
+targVar = 1/(length(test_in_var)-1) * sum((test_in_var-mean(test_in_var)).*(test_in_var-mean(test_in_var)));
+
+%% 
+for l = 1:quadraticMCConfig.memoryWidth
+       
+    coVar = 1/(length(testingOutput(:,l))-1) * sum((outputVectorMemory_Testing(1:end,l)-mean(outputVectorMemory_Testing(1:end,l)))...
+       .*(testingOutput(:,l)-mean(testingOutput(:,l))));    
+    outVar = 1/(length(testingOutput(:,l))-1) * sum((testingOutput(:,l)-mean(testingOutput(:,l))).*(testingOutput(:,l)-mean(testingOutput(:,l))));    
+    totVar = (outVar*targVar(1));    
+    MC_k(l) = (coVar*coVar)/totVar;
+    
+    %remove low values from measure
+    if MC_k(l) <= 0.1
+        MC_k(l) = 0;
+    end
+end
+
+%% 
+MC_k(isnan(MC_k)) = 0;
+MC = sum(MC_k);
+
+%% 
+quadraticMCConfig.graphMemoryCapacity = MC_k;
+quadraticMCConfig.calculatedMemoryCapacity = MC;
+
+disp("Quadratic MC Run Finished");

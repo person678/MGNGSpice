@@ -1,5 +1,5 @@
-XINA IntegratorINAPos IntegratorINANeg Delay_LineDLIn VDD 0 AD712
+XINA IntegratorINAPos IntegratorINANeg VDD 0 DLIn AD712_AD
 CInt1 IntegratorINAPos 0 100n
 RINAF2 0 IntegratorINANeg 3000
-RINAF1 IntegratorINANeg Delay_LineDLIn 3000
+RINAF1 IntegratorINANeg DLIn 3000
 R9 NLOut IntegratorINAPos 3k

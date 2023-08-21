@@ -1,5 +1,6 @@
 import itertools
 import os 
+import csv
 
 # Parses the file specifying simulation parameters. 
 def parse_config(file_name):
@@ -36,6 +37,7 @@ def parse_config(file_name):
                     formatted_data.append(")")
 
                 params[voltage_name] = ' '.join(formatted_data)  # Adding to params
+
             else:
                 name, _, start_value, _, end_value, _, step_value = parts
                 params[name] = (float(start_value), float(end_value), float(step_value))
@@ -45,7 +47,6 @@ def parse_config(file_name):
  # Generates the list of parameters needed for the worker multithreading. 
 def generate_parameters(nodes, command, config_params):
     sim_params = []
-    
     all_ranges = []
     param_names = []
     pwl = []
@@ -102,4 +103,9 @@ def replace_with_absolute_paths(file_name):
     # Write the modified lines back to the file
     with open(file_name, 'w') as file:
         file.writelines(new_lines)
+
+def write_to_csv(params, result_filepath, csv_filepath="simulations.csv"):
+    with open(csv_filepath, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(params + [result_filepath])
 

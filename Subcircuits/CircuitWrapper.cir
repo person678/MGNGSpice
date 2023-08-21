@@ -1,0 +1,4 @@
+.include JFETNL.cir
+.include Integrator.cir
+.include InputAmp.cir
+.include DelayLine.cir 

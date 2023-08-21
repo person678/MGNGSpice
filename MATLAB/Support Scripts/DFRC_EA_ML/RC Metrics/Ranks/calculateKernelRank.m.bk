@@ -1,0 +1,177 @@
+%function [kernelRankConfig] = calculateKernalRank(gainInput, gainTransferFunction, SimulationConfig, metricType)
+
+%% Script to evaluate the Kernal Rank from a Simulation Config
+
+%% First, generate a sequence of random numbers between 0 and 1 of length k
+% All but k-1 are used to warm up the resiviour.
+% At the kth value, the state space of the matrix is taken
+% This implies the following. State space is taken at every Theta
+% The samples are fed in at a speed of Tau
+% K is to be atleast twice N plus washout
+%% This is performed N times
+
+%% Clear workspace
+clear
+close all
+
+%% Seed Random
+rng(1,'twister'); 
+
+%% Select set of results
+ResultSet = "2022_03_28-02_46";
+
+%% Import Configuration
+load([fullfile('./ParamaterSweeps/',ResultSet,'/SimulationConfig.mat')]);
+
+%% Sanity Check
+
+% Check if correct experiment has been loaded
+%if strcmp(ResultSet,SimulationConfig.timeStamp) == false
+%    
+%    disp('Invalid Experiment')
+%    return;
+%end
+
+%% TEMP
+% Input Scalling
+%config.InputScalling = gainin;
+config.InputScalling = 0.5;
+
+% TF Gain
+%config.TransferFunctionGain = tfgain;
+config.TransferFunctionGain = 0.5;
+
+%% Kernal Rank Parameters 
+
+% How many input vectors should be tested? 
+%   Scallar*Nodes
+kernelRankConfig.numberInputVectorScallar = 5;
+
+% What should be the length of each input vector? 
+%   Scallar*Nodes + Washout
+kernelRankConfig.lengthInputVectorScallar = 5;
+
+% What should be the length of each input vector? 
+%   Scallar*Nodes + Washout
+kernelRankConfig.noiseAmplitude = 0.25;
+
+metricType = 'generalisationRank';
+
+%% Calculate parameters
+
+% How many input vectors should be tested? 
+%   Recomended atleast twice that of the amount of nodes.
+kernelRankConfig.numberInputVectors = kernelRankConfig.numberInputVectorScallar*SimulationConfig.nodes;
+
+% What should be the length of each input vector? 
+%   Recomended atleast twice that of the amount of nodes plus washout
+kernelRankConfig.lengthInputVector = (kernelRankConfig.lengthInputVectorScallar*SimulationConfig.nodes) + SimulationConfig.washoutLength;
+
+%% Generate Input Vectors
+% Generate a M random sequence between -1 and 1
+
+
+if (strcmp(metricType,'kernalQuality')) 
+    kernelRankConfig.InputVectors = 2*rand(kernelRankConfig.lengthInputVector,kernelRankConfig.numberInputVectors)-1;
+
+elseif (strcmp(metricType,'generalisationRank')) 
+    
+     kernelRankConfig.InputVectors = 1 + kernelRankConfig.noiseAmplitude*rand(kernelRankConfig.lengthInputVector,kernelRankConfig.numberInputVectors)-(kernelRankConfig.noiseAmplitude/2);
+% 
+%     for x = 0:kernelRankConfig.generalisationLength-1
+%         kernelRankConfig.InputVectors(end-x,:) = 2*rand-1;
+%     end
+    
+  
+else
+    disp('selection invalid')
+    return;
+end
+
+%% Mask Input Vectors
+for i = 1:kernelRankConfig.numberInputVectors
+    % Mask with settings of previous experiment
+    kernelRankConfig.InputVectors_Masked(:,i) = timeMultiplexing(kernelRankConfig.InputVectors(:,i), kernelRankConfig.lengthInputVector, SimulationConfig.nodes, SimulationConfig.maskingType, SimulationConfig.maskingOffset);
+end
+
+%% Calculate Simulation and Input Vector Time
+
+% Simulation Length
+kernelRankConfig.simulationTime = SimulationConfig.signalPeriod*kernelRankConfig.lengthInputVector;
+
+% Input Vector Time
+kernelRankConfig.InputSignalTime = (0:SimulationConfig.maskingPeriod:SimulationConfig.signalPeriod*(kernelRankConfig.lengthInputVector)-1)';
+
+%% Create config for Simulink Simulation
+
+% Set constant variables
+config.theta = SimulationConfig.maskingPeriod;
+config.tau = SimulationConfig.signalPeriod;
+config.Timescale = SimulationConfig.Timescale;
+config.simulationTimeStep = SimulationConfig.simulationTimeStep/10;
+config.simulinkTime = kernelRankConfig.simulationTime;
+
+%% Generate Tests
+for j = 1:kernelRankConfig.numberInputVectors
+
+    % Set simulation model
+    in(j) = Simulink.SimulationInput('DFR_TimescaleModel_ParaSweep');
+
+    % Set config with static simulation variables
+    in(j) = in(j).setVariable('config',config);
+
+    % Retreive and set input test vector
+    config.DFR_Input = [kernelRankConfig.InputSignalTime(:),kernelRankConfig.InputVectors_Masked(:,j)];
+    in(j) = in(j).setVariable('DFR_Input',config.DFR_Input);
+
+    % Set gain parameters
+    in(j) = in(j).setVariable('InputScalling',config.InputScalling);
+    in(j) = in(j).setVariable('TransferFunctionGain',config.TransferFunctionGain);
+
+end
+
+%% Run Tests
+out = parsim(in,'ShowSimulationManager','on','ShowProgress','on','UseFastRestart','on');
+
+%% Retreive state matrix of system output.
+%   For the kernal rank, the last N points are recorded from the simulated state matrix
+
+% Loop through simulated results
+for k = 1:kernelRankConfig.numberInputVectors
+    kernelRankConfig.KernelMatrix(:,k) = out(k).DFR_Out.signals.values(end-(SimulationConfig.nodes-1):end)';
+end
+
+% Catch any errors
+kernelRankConfig.KernelMatrix(isnan(kernelRankConfig.KernelMatrix)) = 0;
+kernelRankConfig.KernelMatrix(isinf(kernelRankConfig.KernelMatrix)) = 0;
+
+%% Evaluate Kernal Quality
+
+% Perform Singular Value Decomposition
+kernelRankConfig.kernalSVD = svd(kernelRankConfig.KernelMatrix);
+
+% Calculate lower threshold value for find kernal rank
+%kernelRankConfig.minimumSVDThreshold = kernelRankConfig.kernalSVD(1)*kernelRankConfig.minimumSVDThresholdScallar;
+
+% 
+%kernelRankConfig.kernalSVD_TH = kernelRankConfig.kernalSVD;
+
+% Apply Threshold
+%lowerThresholdIndex = find(abs(kernelRankConfig.kernalSVD_TH) <= kernelRankConfig.minimumSVDThreshold);
+%kernelRankConfig.kernalSVD_TH(lowerThresholdIndex) = 0;
+
+% Count all non-zero elements
+%kernalRank = nnz(kernelRankConfig.kernalSVD_TH);
+
+tmp_rank_sum = 0;
+full_rank_sum = 0;
+e_rank = 1;
+for l = 1:length(kernelRankConfig.kernalSVD)
+    full_rank_sum = full_rank_sum + kernelRankConfig.kernalSVD(l);
+    while (tmp_rank_sum < full_rank_sum * 0.99)
+        tmp_rank_sum = tmp_rank_sum + kernelRankConfig.kernalSVD(e_rank);
+        e_rank= e_rank+1;
+    end
+end
+
+kernelRankConfig.rank = e_rank-1;

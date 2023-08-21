@@ -2,7 +2,6 @@ import subprocess
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import csv
 
 import tempfile
 import shutil
@@ -23,7 +22,7 @@ def worker(params):
     sim = Simulation(nodes, command, "Subcircuits/ParamTest", param_names_and_values)
     sim.runSim()
     os.remove(sim.netlist_path)
-    print(param_names_and_values)
+
     if any("PWL" in item for item in param_names_and_values):
         
         print("PWL detected! not writing values to CSV.")
@@ -42,13 +41,6 @@ def worker(params):
         }
 
 
-
-def write_to_csv(params, result_filepath, csv_filepath="simulations.csv"):
-    with open(csv_filepath, 'a', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(params + [result_filepath])
-
-
 class Simulation: 
     
     def __init__(self, nodes, simCommand, netlist, param_names_and_values):
@@ -56,11 +48,9 @@ class Simulation:
         nodes_str = "" .join(["V(" + node + ")" for node in nodes])
         # Generates the temp file for the altered netlist. 
         self.temp_id = str(random.randint(1, 100000))
-        wrdata_str = "wrdata Output/outputData" + self.temp_id + ".txt " + nodes_str
+        wrdata_str = "wrdata Output/" + self.temp_id + ".txt " + nodes_str
         self.netlist_path = netlist + self.temp_id + ".cir"
         netlist = netlist + ".cir"
-        
-
 
         with open(netlist, "r") as f:
             circuit = f.read()
@@ -207,6 +197,7 @@ class Simulation:
         subprocess.run(command)
         
 
+
 # Guard needed for multithreading. Program entry point. 
 if __name__ == "__main__":
     nodes, command, params = parse_config("sim.config")
@@ -222,36 +213,5 @@ if __name__ == "__main__":
         writer.writeheader()
         for result in results:
             writer.writerow(result)
-    
-# data = np.loadtxt('Output/outputData.txt')
 
-# # Calculate the number of plots
-# num_plots = len(nodes)
-
-# # Configure plot bounds (change these values as needed)
-# x_min = -10
-# x_max = 10
-# y_min = -10
-# y_max = 10
-
-# # Create a plot
-# plt.figure(figsize=(10, 6))
-
-# # Iterate over each pair of columns and plot them
-# for i in range(num_plots):
-#     x = data[:, 2*i]
-#     y = data[:, 2*i + 1]
-#     plt.plot(x, y, label=nodes[i])
-
-# # Set bounds for the plot
-# plt.xlim([x_min, x_max])
-# plt.ylim([y_min, y_max])
-
-# plt.xlabel('X Values')
-# plt.ylabel('Y Values')
-# plt.title('Multiple Plots')
-# plt.grid(True)
-# plt.legend()
-
-# # Display the plot
-# plt.show()
+        
