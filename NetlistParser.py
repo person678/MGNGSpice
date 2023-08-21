@@ -48,6 +48,7 @@ def generate_parameters(nodes, command, config_params):
     
     all_ranges = []
     param_names = []
+    pwl = []
     
     for name, value in config_params.items():
         if isinstance(value, tuple) and len(value) == 3:  # It's a ranged parameter
@@ -55,13 +56,17 @@ def generate_parameters(nodes, command, config_params):
             all_ranges.append(list(frange(start, end, step)))
             param_names.append(name)
         else:  # It's the PWL data
-            all_ranges.append([value])  # Making it a single-element list
-            param_names.append(name)
-    
+            pwl.append([value])
+            pwl.append(name)
+
+    # Ensures PWL data always at end of parameter list.        
+    all_ranges.append(pwl[0])
+    param_names.append(pwl[1])
     for combination in itertools.product(*all_ranges):
         combination_str = [str(val) for val in combination]
         param_and_values = list(itertools.chain(*zip(param_names, combination_str)))
         sim_params.append((nodes, command, *param_and_values))
+    print(sim_params)
 
     return sim_params
 

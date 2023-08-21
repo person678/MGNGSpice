@@ -2,12 +2,13 @@ import subprocess
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import csv
 
 import tempfile
 import shutil
 import random
 
-from multiprocessing import Pool
+from multiprocessing import Pool, Process, Queue
 
 import re
 
@@ -22,18 +23,44 @@ def worker(params):
     sim = Simulation(nodes, command, "Subcircuits/ParamTest", param_names_and_values)
     sim.runSim()
     os.remove(sim.netlist_path)
+    print(param_names_and_values)
+    if any("PWL" in item for item in param_names_and_values):
+        
+        print("PWL detected! not writing values to CSV.")
+        return {
+            'fileID' : sim.temp_id,
+            'node': nodes,
+            'command': command,
+            'parameters': param_names_and_values[:-1]
+        }
+    else: 
+        return {
+            'filename' : sim.temp_id,
+            'node': nodes,
+            'command': command,
+            'parameters': param_names_and_values
+        }
+
+
+
+def write_to_csv(params, result_filepath, csv_filepath="simulations.csv"):
+    with open(csv_filepath, 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(params + [result_filepath])
 
 
 class Simulation: 
     
     def __init__(self, nodes, simCommand, netlist, param_names_and_values):
+        param_str = ""
         nodes_str = "" .join(["V(" + node + ")" for node in nodes])
         # Generates the temp file for the altered netlist. 
-        temp_id = str(random.randint(1, 100000))
-        wrdata_str = "wrdata Output/outputData" + temp_id + ".txt " + nodes_str
-        self.netlist_path = netlist + temp_id + ".cir"
+        self.temp_id = str(random.randint(1, 100000))
+        wrdata_str = "wrdata Output/outputData" + self.temp_id + ".txt " + nodes_str
+        self.netlist_path = netlist + self.temp_id + ".cir"
         netlist = netlist + ".cir"
-        # replace_with_absolute_paths(netlist)
+        
+
 
         with open(netlist, "r") as f:
             circuit = f.read()
@@ -50,11 +77,14 @@ class Simulation:
 
         # Change the Parameters. 
         for i in range(0, len(param_names_and_values), 2):
-            print(param_names_and_values)
             name, value = param_names_and_values[i], param_names_and_values[i + 1]
             self.change_component(name, value)
 
     def setNLparams(self, target, value):
+        # This method allows us to configure key parameters of the NL circuit. 
+        # Targets: 
+        # a, b, d: ratio of two resistors, see circuit diagram
+
         # Define configurable values
         b_base_value = 10.0  # 10k for b components
         d_base_value = 2.0  # 2k for d components
@@ -94,6 +124,7 @@ class Simulation:
 
 
     # Currently can handle the a, b, and d resistor ratios, and changing resistors. 
+    # Can also specify the source for PWL input. 
     def change_component(self, name, value):
         if name in ("a", "b", "d"):
             self.setNLparams(name, value)
@@ -105,6 +136,9 @@ class Simulation:
 
 
     def setComponentValue(self, name, value):
+    # Changes a component value in the netlist. 
+    # Name must be the label at the start of th line, i.e. "R2"
+    # Note that scientific units will be left untouched. 
     # Read all lines from the netlist file
         with open(self.netlist_path, "r") as file:
             lines = file.readlines()
@@ -180,7 +214,15 @@ if __name__ == "__main__":
 
 # Run NgSpice simulation
     with Pool(processes=3) as pool:
-        pool.map(worker, sim_params)
+        results = pool.map(worker, sim_params)
+    with open('Output/run_config.csv', 'w', newline='') as csvfile:
+        fieldnames = ['fileID', 'node', 'command', 'parameters']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        
+        writer.writeheader()
+        for result in results:
+            writer.writerow(result)
+    
 # data = np.loadtxt('Output/outputData.txt')
 
 # # Calculate the number of plots
