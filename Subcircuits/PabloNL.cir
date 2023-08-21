@@ -1,14 +1,15 @@
-.include Subcircuits/analog.lib
-.include Subcircuits/ad633.cir
-
+* Title Pablo's Non-Linearity Circuit
+.include /Users/paulpickering/Library/CloudStorage/OneDrive-Personal/Uni/Placement/Mackey-Glass-Circuit/Simulations/NGSpice/MGNGSpice/Subcircuits/analog.lib
+.include /Users/paulpickering/Library/CloudStorage/OneDrive-Personal/Uni/Placement/Mackey-Glass-Circuit/Simulations/NGSpice/MGNGSpice/Subcircuits/ad633.cir
+* THIS WORKS
 V1 VIn 0 DC 2
 VDD VDD 0 DC 10
 XNL1 VIn NLA1Out VDD VNeg NLA1Out AD712_AD
 XM1 Mult1In 0 Mult1In 0 VNeg 0 Mult2In VDD AD633AN
-R2 RtoPot NLA3Pos 10k
+R2 RtoPot NLA3Pos 15k
 R3 NLA3Pos 0 10k
-RF1 NLA2Neg 0 1k
-RF2 Mult1In NLA2Neg 1k
+RF2 NLA2Neg 0 1k
+RF1 Mult1In NLA2Neg 1k
 XNL2 NLA1Out NLA2Neg VDD VNeg Mult1In AD712_AD
 R1 RtoPot NLA1Out 56k
 XM2 Mult2In 0 Mult2In 0 VNeg 0 Mult2Out VDD AD633AN

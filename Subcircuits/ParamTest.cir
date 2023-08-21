@@ -1,0 +1,4 @@
+* Title Parameters
+V1 VIn 0 DC 10
+R1 VIn R1toR2 1000
+R2 R1toR2 0 1000
