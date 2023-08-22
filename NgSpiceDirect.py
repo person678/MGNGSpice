@@ -34,7 +34,7 @@ def worker(params):
         }
     else: 
         return {
-            'filename' : sim.temp_id,
+            'fileID' : sim.temp_id,
             'node': nodes,
             'command': command,
             'parameters': param_names_and_values
