@@ -73,6 +73,8 @@ class Simulation:
             ".end"
         ]
 
+        self.unwrap_includes()
+
         # Change the Parameters. 
         for i in range(0, len(param_names_and_values), 2):
             name, value = param_names_and_values[i], param_names_and_values[i + 1]
@@ -197,11 +199,33 @@ class Simulation:
         temp_file.close()
 
         return temp_file_path
+    
+    def unwrap_includes(self):
+        new_content = []
 
+        with open(self.netlist_path, 'r') as main_file:
+            for line in main_file:
+                stripped_line = line.strip()
+                # Check for the .include directive
+                if stripped_line.startswith(".include"):
+                    # Extract path from the line
+                    include_path = stripped_line.split()[-1]
+                    # Read the .cir file
+                    with open(include_path, 'r') as include_file:
+                        cir_content = include_file.readlines()
+                        new_content.extend(cir_content)
+                    # Ensure the last line has a newline
+                        if cir_content and not cir_content[-1].endswith('\n'):
+                            new_content.append('\n')
+                else:
+                    new_content.append(line)
+
+        # Write the modified content back to the main file
+        with open(self.netlist_path, 'w') as main_file:
+            main_file.writelines(new_content)
 
 
     def runSim(self):
-        print(self.control)
         path = self.append_control(self.netlist_path, self.control)
         command = ["ngspice", path]
         subprocess.run(command)
