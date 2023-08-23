@@ -2,17 +2,20 @@
 .include /Users/paulpickering/Library/CloudStorage/OneDrive-Personal/Uni/Placement/Mackey-Glass-Circuit/Simulations/NGSpice/MGNGSpice/Subcircuits/analog.lib
 .include /Users/paulpickering/Library/CloudStorage/OneDrive-Personal/Uni/Placement/Mackey-Glass-Circuit/Simulations/NGSpice/MGNGSpice/Subcircuits/ad633.cir
 * THIS WORKS
-XNL1 IAOut NLA1Out VDD VNeg NLA1Out AD712_AD
+V1 VIn 0 SIN(0 5 100)
+VDD VDD 0 DC 10
+XNL1 VIn NLA1Out VDD VNeg NLA1Out AD712_AD
 XM1 Mult1In 0 Mult1In 0 VNeg 0 Mult2In VDD AD633AN
-RNL2 RtoPot NLA3Pos 15k
-RNL3 NLA3Pos 0 10k
-RNLF2 NLA2Neg 0 1k
-RNLF1 Mult1In NLA2Neg 1k
+R2 RtoPot NLA3Pos 15k
+R3 NLA3Pos 0 10k
+RF2 NLA2Neg 0 1k
+RF1 Mult1In NLA2Neg 1k
 XNL2 NLA1Out NLA2Neg VDD VNeg Mult1In AD712_AD
-RNL1 RtoPot NLA1Out 56k
+R1 RtoPot NLA1Out 56k
 XM2 Mult2In 0 Mult2In 0 VNeg 0 Mult2Out VDD AD633AN
-RNL4 0 Mult3Y2 1k
+V3 VNeg 0 DC -10 
+R4 0 Mult3Y2 1k
 XNL3 NLA3Pos NLA3Neg VDD VNeg NLOut AD712_AD
-RNL5 Mult3Y2 R5toR6 1k
-RNL6 R5toR6 VNeg 56k
+R5 Mult3Y2 R5toR6 1k
+R6 R5toR6 VNeg 56k
 XM3 NLOut 0 Mult2Out Mult3Y2 VNeg 0 NLA3Neg VDD AD633AN

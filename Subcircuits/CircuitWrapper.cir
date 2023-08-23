@@ -1,4 +1,5 @@
-.include JFETNL.cir
-.include Integrator.cir
-.include InputAmp.cir
-.include DelayLine.cir 
+* Title Mackey Glass Circuit
+.include /Users/paulpickering/Library/CloudStorage/OneDrive-Personal/Uni/Placement/Mackey-Glass-Circuit/Simulations/NGSpice/MGNGSpice/Subcircuits/PabloNL.cir
+.include /Users/paulpickering/Library/CloudStorage/OneDrive-Personal/Uni/Placement/Mackey-Glass-Circuit/Simulations/NGSpice/MGNGSpice/Subcircuits/Integrator.cir
+.include /Users/paulpickering/Library/CloudStorage/OneDrive-Personal/Uni/Placement/Mackey-Glass-Circuit/Simulations/NGSpice/MGNGSpice/Subcircuits/InputAmp.cir
+.include /Users/paulpickering/Library/CloudStorage/OneDrive-Personal/Uni/Placement/Mackey-Glass-Circuit/Simulations/NGSpice/MGNGSpice/Subcircuits/DelayLine.cir 
