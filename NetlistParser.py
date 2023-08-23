@@ -20,10 +20,19 @@ def parse_config(file_name):
             line = line.strip()
             parts = line.split()
             
-            if line.startswith("sim"):
+            # Allows for comment lines begininng with *
+            if line.startswith("*"): 
+                continue
+            # Handles sim command. 
+            elif line.startswith("sim"):
+                if command != "":
+                    print("Error! Seccond sim command detected.")
+                    exit()
                 command = line.replace("sim", "", 1).strip()
             elif line.startswith("measure"):
-                nodes.append(parts[1])
+                for part in parts[1:]:
+                    nodes.append(part)
+
             elif "FILE=" in line and "V" in parts[0]:
                 voltage_name = parts[0]
                 filepath = line.split("FILE=")[1].strip("{}")
@@ -60,9 +69,10 @@ def generate_parameters(nodes, command, config_params):
             pwl.append([value])
             pwl.append(name)
 
-    # Ensures PWL data always at end of parameter list.        
-    all_ranges.append(pwl[0])
-    param_names.append(pwl[1])
+    # Ensures PWL data always at end of parameter list.
+    if pwl:        
+        all_ranges.append(pwl[0])
+        param_names.append(pwl[1])
     for combination in itertools.product(*all_ranges):
         combination_str = [str(val) for val in combination]
         param_and_values = list(itertools.chain(*zip(param_names, combination_str)))

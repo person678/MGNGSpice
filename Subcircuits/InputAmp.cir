@@ -1,5 +1,8 @@
-XIA Input_Amplifier_StageOA1Pos Input_Amplifier_StageOA1Neg VDD 0 IAOut AD712_AD
-R1 VIn Input_Amplifier_StageOA1Pos 1k
-R2 DLOut Input_Amplifier_StageOA1Pos 1k
-RIAF1 Input_Amplifier_StageOA1Neg IAOut 3k
-RIAF2 Input_Amplifier_StageOA1Neg GND 3k
+V1 VDD 0 DC 12
+V2 VIn 0 DC 5
+V3 VNeg 0 DC -10 
+XIA InputAmpPos InputAmpNeg VDD VNeg IAOut AD712_AD
+RIN1 VIn InputAmpPos 1k
+RIN2 DLOut InputAmpPos 1k
+RIAF1 InputAmpNeg IAOut 2k
+RIAF2 InputAmpNeg GND 3k

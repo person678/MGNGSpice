@@ -15,11 +15,17 @@ import time
 
 from NetlistParser import *
 
+#-------------------------------------------------------
+# MISC INFO
+#-------------------------------------------------------
+# Need to have "* Title TitleOfCircuit" line in circuit file for NGSpice to like it. 
+
 # This is for for batchprocessing. Ran once for each sim. 
 def worker(params):
     nodes, command, *param_names_and_values = params
     print(command)
-    sim = Simulation(nodes, command, "Subcircuits/ParamTest", param_names_and_values)
+    netlist = "Subcircuits/CircuitWrapper"
+    sim = Simulation(nodes, command, netlist, param_names_and_values)
     sim.runSim()
     os.remove(sim.netlist_path)
 
@@ -34,7 +40,7 @@ def worker(params):
         }
     else: 
         return {
-            'filename' : sim.temp_id,
+            'fileID' : sim.temp_id,
             'node': nodes,
             'command': command,
             'parameters': param_names_and_values
@@ -54,8 +60,10 @@ class Simulation:
 
         with open(netlist, "r") as f:
             circuit = f.read()
+                
         with open(self.netlist_path, "w") as file: 
             file.write(circuit)
+
         self.control = [
             ".control", 
             simCommand, 
@@ -64,6 +72,8 @@ class Simulation:
             ".endc", 
             ".end"
         ]
+
+        self.unwrap_includes()
 
         # Change the Parameters. 
         for i in range(0, len(param_names_and_values), 2):
@@ -123,6 +133,9 @@ class Simulation:
         elif "PWL" in value:
             print("PWL detected! Changing " + name + " in file.")
             self.setComponentValue(name, value)
+        else: 
+            print("Error! Tried to change component, but didn't match any known format. ")
+            exit()
 
 
     def setComponentValue(self, name, value):
@@ -170,7 +183,6 @@ class Simulation:
         Returns:
         - str: The path to the temporary file.
         """
-        print(content_list)
         # Create a temporary file
         temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w+t')
 
@@ -187,11 +199,33 @@ class Simulation:
         temp_file.close()
 
         return temp_file_path
+    
+    def unwrap_includes(self):
+        new_content = []
 
+        with open(self.netlist_path, 'r') as main_file:
+            for line in main_file:
+                stripped_line = line.strip()
+                # Check for the .include directive
+                if stripped_line.startswith(".include"):
+                    # Extract path from the line
+                    include_path = stripped_line.split()[-1]
+                    # Read the .cir file
+                    with open(include_path, 'r') as include_file:
+                        cir_content = include_file.readlines()
+                        new_content.extend(cir_content)
+                    # Ensure the last line has a newline
+                        if cir_content and not cir_content[-1].endswith('\n'):
+                            new_content.append('\n')
+                else:
+                    new_content.append(line)
+
+        # Write the modified content back to the main file
+        with open(self.netlist_path, 'w') as main_file:
+            main_file.writelines(new_content)
 
 
     def runSim(self):
-        print(self.control)
         path = self.append_control(self.netlist_path, self.control)
         command = ["ngspice", path]
         subprocess.run(command)
