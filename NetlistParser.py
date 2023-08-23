@@ -20,14 +20,19 @@ def parse_config(file_name):
             line = line.strip()
             parts = line.split()
             
-            
+            # Allows for comment lines begininng with *
             if line.startswith("*"): 
-                # Allows for comment lines begininng with *. 
                 continue
+            # Handles sim command. 
             elif line.startswith("sim"):
+                if command != "":
+                    print("Error! Seccond sim command detected.")
+                    exit()
                 command = line.replace("sim", "", 1).strip()
             elif line.startswith("measure"):
-                nodes.append(parts[1])
+                for part in parts[1:]:
+                    nodes.append(part)
+
             elif "FILE=" in line and "V" in parts[0]:
                 voltage_name = parts[0]
                 filepath = line.split("FILE=")[1].strip("{}")

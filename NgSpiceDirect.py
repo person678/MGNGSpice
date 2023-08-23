@@ -15,11 +15,17 @@ import time
 
 from NetlistParser import *
 
+#-------------------------------------------------------
+# MISC INFO
+#-------------------------------------------------------
+# Need to have "* Title TitleOfCircuit" line in circuit file for NGSpice to like it. 
+
 # This is for for batchprocessing. Ran once for each sim. 
 def worker(params):
     nodes, command, *param_names_and_values = params
     print(command)
-    sim = Simulation(nodes, command, "Subcircuits/ParamTest", param_names_and_values)
+    netlist = "Subcircuits/CircuitWrapper"
+    sim = Simulation(nodes, command, netlist, param_names_and_values)
     sim.runSim()
     os.remove(sim.netlist_path)
 
@@ -54,8 +60,10 @@ class Simulation:
 
         with open(netlist, "r") as f:
             circuit = f.read()
+                
         with open(self.netlist_path, "w") as file: 
             file.write(circuit)
+
         self.control = [
             ".control", 
             simCommand, 
@@ -123,6 +131,9 @@ class Simulation:
         elif "PWL" in value:
             print("PWL detected! Changing " + name + " in file.")
             self.setComponentValue(name, value)
+        else: 
+            print("Error! Tried to change component, but didn't match any known format. ")
+            exit()
 
 
     def setComponentValue(self, name, value):
@@ -170,7 +181,6 @@ class Simulation:
         Returns:
         - str: The path to the temporary file.
         """
-        print(content_list)
         # Create a temporary file
         temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w+t')
 
