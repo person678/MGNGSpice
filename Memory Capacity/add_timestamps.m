@@ -10,19 +10,23 @@ input_masked = csvread(csvFile);
 % Generate the timestamps
 timestamps = (0:theta:theta*(length(input_masked)-1))';
 
-% Create the doubled length matrix
-dataWithTimestamps = zeros(2*length(timestamps)-1, 2);
+% Create a list to store data with timestamps
+dataList = [];
 
-% Populate the doubled matrix
+% Populate the list
 for i = 1:length(timestamps)
-    dataWithTimestamps(2*i-1, 1) = timestamps(i);
-    dataWithTimestamps(2*i-1, 2) = input_masked(i);
     
-    if i < length(timestamps)
-        dataWithTimestamps(2*i, 1) = timestamps(i+1) - 2e-6; % Subtract a small value to set time just before the next point
-        dataWithTimestamps(2*i, 2) = input_masked(i);
+    % Always add the current value
+    dataList = [dataList; timestamps(i), input_masked(i)];
+    
+    if i < length(timestamps) && input_masked(i) ~= input_masked(i+1)
+        % If the current value is different from the next value, add an intermediate point
+        dataList = [dataList; timestamps(i+1) - 1.5e-6, input_masked(i)];
     end
 end
+
+% Convert the list to a matrix
+dataWithTimestamps = cell2mat(dataList);
 
 % Create or open file.
 SpiceInputFile = 'SpiceInput.txt'; 

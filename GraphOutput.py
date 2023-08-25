@@ -4,7 +4,7 @@ import csv
 
 # Define the bounds (change these values as needed)
 x_min = 0
-x_max = 0.1
+x_max = 10
 y_min = -5
 y_max = 5
 
