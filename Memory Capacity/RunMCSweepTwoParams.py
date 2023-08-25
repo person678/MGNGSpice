@@ -4,6 +4,7 @@ import prepare_output as po
 from mc_benchmark import mc_benchmark
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 
 # Lists to store unique parameter values
 param1_values = set()
@@ -35,6 +36,7 @@ with open('Output/run_config.csv', 'r') as file:
             param_str = ' '.join(param_list)
             path = po.prepare_output(file_name, param_str)
             score = mc_benchmark(path)
+            os.remove(path)
 
             score_dict[(param2_value, param1_value)] = score
         except (ValueError, IndexError):

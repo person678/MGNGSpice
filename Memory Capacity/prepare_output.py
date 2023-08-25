@@ -33,6 +33,6 @@ def prepare_output(filename, param):
     voltage_interp = voltage_interp[100:]
 
     # Write the interpolated voltage data to a new text file
-    path = param + "_processed.txt"
+    path = "Output/Processed Files/" + param + "_processed.txt"
     np.savetxt(path, voltage_interp, fmt="%.15f")
     return path

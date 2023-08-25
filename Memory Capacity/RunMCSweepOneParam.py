@@ -3,6 +3,7 @@ import numpy as np
 import prepare_output as po
 import mc_benchmark as mc
 import matplotlib.pyplot as plt
+import os
 
 # Lists to store parameter values and corresponding scores
 param_values = []
@@ -28,6 +29,7 @@ with open('Output/run_config.csv', 'r') as file:
             param_str = ' '.join(param_list)
             path = po.prepare_output(file_name, param_str)
             score = mc.mc_benchmark(path)
+            os.remove(path)
             scores.append(score)
         except (ValueError, IndexError):
             # This will skip cases where the value after 'RIAF2' is not a float or there's no value after 'RIAF2'
