@@ -1,0 +1,3 @@
+* Title Mackey Glass Circuit
+.include /Users/paulpickering/Library/CloudStorage/OneDrive-Personal/Uni/Placement/Mackey-Glass-Circuit/Simulations/NGSpice/MGNGSpice/Subcircuits/PabloNLSolo.cir
+.include /Users/paulpickering/Library/CloudStorage/OneDrive-Personal/Uni/Placement/Mackey-Glass-Circuit/Simulations/NGSpice/MGNGSpice/Subcircuits/DelayLine.cir 
