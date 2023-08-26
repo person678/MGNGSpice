@@ -126,6 +126,29 @@ class Simulation:
         with open(self.netlist_path, "w") as file:
             file.writelines(lines)
 
+    def setInputFeedbackMix(self, mix):
+        mix = float(mix)
+        # This method allows us configure the ratio of feedback  to input mix. 
+        # mix: ratio of input to delay line. 
+        # E.g. 2 doubles the contribution of the input, halves the feedback. 
+
+        # Read all lines from the netlist file
+        with open(self.netlist_path, "r") as file:
+            lines = file.readlines()
+
+        # Iterate over lines to adjust values based on target
+        for i, line in enumerate(lines):
+            parts = line.strip().split()
+
+            if len(parts) > 1 and parts[0] == "EInScale":
+                lines[i] = f"EInScale VInScaled 0 vol = '(1.9 + (V(VIn) * 3.8)) * {mix}\n'"
+            elif len(parts) > 1 and parts[0] == "EFBScale":
+                lines[i] = f"EFBScale FeedbackScaled 0 vol = '(V(DLOut)/4.67 - 0.5) * {1/mix}\n"
+
+        # Write the updated lines back to the netlist file
+        with open(self.netlist_path, "w") as file:
+            file.writelines(lines)
+
 
     # Currently can handle the a, b, and d resistor ratios, and changing resistors. 
     # Can also specify the source for PWL input. 
@@ -137,6 +160,8 @@ class Simulation:
         elif "PWL" in value:
             print("PWL detected! Changing " + name + " in file.")
             self.setComponentValue(name, value)
+        elif "mix" in name:
+            self.setInputFeedbackMix(value)
         else: 
             print("Error! Tried to change component, but didn't match any known format. ")
             print("Component: " + name + ", Value: " + value)
@@ -247,6 +272,7 @@ class Simulation:
 
 # Guard needed for multithreading. Program entry point. 
 if __name__ == "__main__":
+    # Reads in sim parameters from the config file. 
     nodes, command, params = parse_config("sim.config")
     sim_params = generate_parameters(nodes, command, params)
 
