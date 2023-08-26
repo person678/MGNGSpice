@@ -46,6 +46,11 @@ def parse_config(file_name):
                     formatted_data.append(")")
 
                 params[voltage_name] = ' '.join(formatted_data)  # Adding to params
+            
+            # Handles the case "Component set X"
+            elif "set" in line:
+                name, _, value = parts
+                params[name] = (float(value),) 
 
             else:
                 name, _, start_value, _, end_value, _, step_value = parts
@@ -61,18 +66,30 @@ def generate_parameters(nodes, command, config_params):
     pwl = []
     
     for name, value in config_params.items():
-        if isinstance(value, tuple) and len(value) == 3:  # It's a ranged parameter
-            start, end, step = value
-            all_ranges.append(list(frange(start, end, step)))
-            param_names.append(name)
-        else:  # It's the PWL data
-            pwl.append([value])
-            pwl.append(name)
 
-    # Ensures PWL data always at end of parameter list.
-    if pwl:        
-        all_ranges.append(pwl[0])
-        param_names.append(pwl[1])
+        try: 
+
+            if isinstance(value, tuple) and len(value) == 3:  # It's a ranged parameter
+                start, end, step = value
+                all_ranges.append(list(frange(start, end, step)))
+                param_names.append(name)
+
+            elif isinstance(value, tuple) and len(value) == 1: # It's a set command.
+                all_ranges.append(value)
+                param_names.append(name)
+
+            elif "PWL" in value:  # It's the PWL data
+                pwl.append([value])
+                pwl.append(name)
+
+        # Ensures PWL data always at end of parameter list.
+            if pwl:        
+                all_ranges.append(pwl[0])
+                param_names.append(pwl[1])
+        except:
+            print("Error generating parameter list! Check config file syntax?")
+            exit(1)
+
     for combination in itertools.product(*all_ranges):
         combination_str = [str(val) for val in combination]
         param_and_values = list(itertools.chain(*zip(param_names, combination_str)))
