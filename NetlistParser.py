@@ -16,46 +16,52 @@ def parse_config(file_name):
     command = ""
     
     with open(file_name, 'r') as file:
-        for line in file:
-            line = line.strip()
-            parts = line.split()
-            
-            # Allows for comment lines begininng with *
-            if line.startswith("*"): 
-                continue
-            # Handles sim command. 
-            elif line.startswith("sim"):
-                if command != "":
-                    print("Error! Seccond sim command detected.")
-                    exit()
-                command = line.replace("sim", "", 1).strip()
-            elif line.startswith("measure"):
-                for part in parts[1:]:
-                    nodes.append(part)
 
-            elif "FILE=" in line and "V" in parts[0]:
-                voltage_name = parts[0]
-                filepath = line.split("FILE=")[1].strip("{}")
+        try: 
+            for line in file:
+                line = line.strip()
+                parts = line.split()
+
+                # Allows for comment lines begininng with *, or empty spacing lines
+                if line.startswith("*") or line == "": 
+                    continue
+                # Handles sim command. 
+                elif line.startswith("sim"):
+                    if command != "":
+                        print("Error! Seccond sim command detected.")
+                        exit()
+                    command = line.replace("sim", "", 1).strip()
+                elif line.startswith("measure"):
+                    for part in parts[1:]:
+                        nodes.append(part)
+
+                elif "FILE=" in line and "V" in parts[0]:
+                    voltage_name = parts[0]
+                    filepath = line.split("FILE=")[1].strip("{}")
+                    
+                    # Read the PWL file and format it for NGSpice
+                    with open(filepath, 'r') as pwl_file:
+                        formatted_data = ["PWL("]
+                        for pwl_line in pwl_file:
+                            time, voltage = pwl_line.strip().split()
+                            formatted_data.append(f"{time} {voltage}")
+                        formatted_data.append(")")
+
+                    params[voltage_name] = ' '.join(formatted_data)  # Adding to params
                 
-                # Read the PWL file and format it for NGSpice
-                with open(filepath, 'r') as pwl_file:
-                    formatted_data = ["PWL("]
-                    for pwl_line in pwl_file:
-                        time, voltage = pwl_line.strip().split()
-                        formatted_data.append(f"{time} {voltage}")
-                    formatted_data.append(")")
+                # Handles the case "Component set X"
+                elif "set" in line:
+                    name, _, value = parts
+                    params[name] = (float(value),) 
 
-                params[voltage_name] = ' '.join(formatted_data)  # Adding to params
-            
-            # Handles the case "Component set X"
-            elif "set" in line:
-                name, _, value = parts
-                params[name] = (float(value),) 
+                else:
 
-            else:
-                name, _, start_value, _, end_value, _, step_value = parts
-                params[name] = (float(start_value), float(end_value), float(step_value))
-    
+                    name, _, start_value, _, end_value, _, step_value = parts
+                    params[name] = (float(start_value), float(end_value), float(step_value))
+        except Exception as e: 
+            print("Error parsing config file! Check for typos/syntax errors?")
+            exit(1)
+
     return nodes, command, params
 
  # Generates the list of parameters needed for the worker multithreading. 
@@ -86,7 +92,7 @@ def generate_parameters(nodes, command, config_params):
             if pwl:        
                 all_ranges.append(pwl[0])
                 param_names.append(pwl[1])
-        except:
+        except Exception as e:
             print("Error generating parameter list! Check config file syntax?")
             exit(1)
 

@@ -141,9 +141,9 @@ class Simulation:
             parts = line.strip().split()
 
             if len(parts) > 1 and parts[0] == "EInScale":
-                lines[i] = f"EInScale VInScaled 0 vol = '(1.9 + (V(VIn) * 3.8)) * {mix}\n'"
+                lines[i] = f"EInScale VInScaled 0 vol = '(1.9 + (V(VIn) * 3.8)) * {round(mix, 3)}'\n"
             elif len(parts) > 1 and parts[0] == "EFBScale":
-                lines[i] = f"EFBScale FeedbackScaled 0 vol = '(V(DLOut)/4.67 - 0.5) * {1/mix}\n"
+                lines[i] =f"EFBScale FeedbackScaled 0 vol = '(V(DLOut)/4.67 - 0.5) * {round(1/mix, 3)}'\n"
 
         # Write the updated lines back to the netlist file
         with open(self.netlist_path, "w") as file:
