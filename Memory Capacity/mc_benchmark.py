@@ -14,10 +14,11 @@ def mc_benchmark(file_path):
     raw_signal=np.genfromtxt(file_path1)
 
     # Create the 'shift register' of delayed inputs for training/testing
-    shift_register = np.zeros((999, 10))
-    for i in range(989):
-        i += 9
-        shift_register[i, :] = raw_signal[i-8:i+2]
+    #shift_register = np.zeros((999, 10))
+    shift_register = np.zeros((999, 15))
+    for i in range(984):
+        i += 14
+        shift_register[i, :] = raw_signal[i-13:i+2]
 
     shift_register = np.fliplr(shift_register)
     
@@ -51,7 +52,7 @@ def mc_benchmark(file_path):
     Yt = train_target
     M1 = np.matmul(X.transpose(), Yt) 
     M2 = np.matmul(X.transpose(), X)
-    gammas = np.logspace(-10, 0, num=10)
+    gammas = np.logspace(-15, 0, num=15)
     BestMC = 0
     BestGamma = 0  
     # Hyperparameter tuning and calculating MC
@@ -60,9 +61,9 @@ def mc_benchmark(file_path):
         train_prediction = np.matmul(train_states, weights)
         test_prediction = np.matmul(test_states, weights)
         train_error = abs(train_prediction - train_target)
-        MC_k = np.zeros(10)
+        MC_k = np.zeros(15)
         targVar = np.var(raw_signal[600:800])
-        for node in range(10):
+        for node in range(15):
             Mat1 = test_prediction[:, node]
             Mat2 = test_target[:, node]
             M = Mat1, Mat2
