@@ -37,7 +37,7 @@ with open('Output/run_config.csv', 'r') as file:
 # Set plot parameters
 plt.xlim([x_min, x_max])
 plt.ylim([y_min, y_max])
-plt.xlabel('Time (s)')
+plt.xlabel('Voltage (V)')
 plt.ylabel('Voltage (V)')
 plt.title('Multiple Plots')
 plt.grid(True)
