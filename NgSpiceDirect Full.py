@@ -201,8 +201,27 @@ class Simulation:
             file.writelines(lines)
 
     # IMPLEMENT
-    def set_input_delay_ratio(self, ratio):
-        print()
+    def setDelayLineLength(self, stage):
+        
+        # This method allows us configure the ratio of feedback  to input mix. 
+        # mix: ratio of input to delay line. 
+        # E.g. 2 doubles the contribution of the input, halves the feedback. 
+
+        # Read all lines from the netlist file
+        with open(self.netlist_path, "r") as file:
+            lines = file.readlines()
+
+        # Iterate over lines to adjust values based on target
+        for i, line in enumerate(lines):
+            if "DLOut" in line:
+                line.replace("DLOut", "Delay_LineDL" + stage)
+                print(line)
+
+        # Write the updated lines back to the netlist file
+        with open(self.netlist_path, "w") as file:
+            file.writelines(lines)
+    
+
 
 
         

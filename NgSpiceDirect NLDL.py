@@ -1,17 +1,13 @@
 import subprocess
 import os
-import numpy as np
-import matplotlib.pyplot as plt
 
 import tempfile
 import shutil
 import random
 
-from multiprocessing import Pool, Process, Queue
+from multiprocessing import Pool
 
 import re
-
-import time
 
 from NetlistParser import *
 
@@ -23,8 +19,7 @@ from NetlistParser import *
 # This is for for batchprocessing. Ran once for each sim. 
 def worker(params):
     nodes, command, *param_names_and_values = params
-    print(command)
-    netlist = "Subcircuits/CircuitWrapperNLDL"
+    netlist = "Subcircuits/PabloNLSolo"
     sim = Simulation(nodes, command, netlist, param_names_and_values)
     sim.runSim()
     os.remove(sim.netlist_path)
@@ -64,7 +59,11 @@ class Simulation:
         with open(self.netlist_path, "w") as file: 
             file.write(circuit)
 
+# This is for the commands to be sent to NGSpice. See NGSpice control language documentation. 
         self.control = [
+            # This save command isn't for the control language, it ensures only the relevant nodes are saved.
+            # Fun fact: Without this, a 3 parameter sweep tried to use 40GB of RAM. With it, about 150MB. 
+            ".save " + nodes_str, 
             ".control", 
             simCommand, 
             wrdata_str, 
@@ -73,8 +72,11 @@ class Simulation:
             ".end"
         ]
 
-        self.unwrap_include("PabloNLSolo.cir")
+        self.unwrap_include("PabloNL.cir")
         self.unwrap_include("DelayLine.cir")
+        self.unwrap_include("InputAmp.cir")
+        self.unwrap_include("Integrator.cir")
+
 
         # Change the Parameters. 
         for i in range(0, len(param_names_and_values), 2):
@@ -82,6 +84,7 @@ class Simulation:
             self.change_component(name, value)
 
     def setNLparams(self, target, value):
+        value = float(value)
         # This method allows us to configure key parameters of the NL circuit. 
         # Targets: 
         # a, b, d: ratio of two resistors, see circuit diagram
@@ -100,24 +103,47 @@ class Simulation:
 
             # Adjust values for target 'a'
             if target == 'a':
-                if len(parts) > 1 and parts[0] == "RF2":
-                    lines[i] = "RF2 NLA2Neg 0 1k\n"
-                elif len(parts) > 1 and parts[0] == "RF1":
-                    lines[i] = f"RF1 Mult1In NLA2Neg {value}k\n"
+                if len(parts) > 1 and parts[0] == "RNLF2":
+                    lines[i] = "RNLF2 NLA2Neg 0 1k\n"
+                elif len(parts) > 1 and parts[0] == "RNLF1":
+                    lines[i] = f"RNLF1 Mult1In NLA2Neg {value}k\n"
 
             # Adjust values for target 'b'
             elif target == 'b':
-                if len(parts) > 1 and parts[0] == "R2":
-                    lines[i] = f"R2 RtoPot NLA3Pos {b_base_value * (1-value)}k\n"
-                elif len(parts) > 1 and parts[0] == "R3":
-                    lines[i] = f"R3 NLA3Pos 0 {b_base_value * value}k\n"
+                if len(parts) > 1 and parts[0] == "RNL2":
+                    lines[i] = f"RNL2 RtoPot NLA3Pos {b_base_value * (1-value)}k\n"
+                elif len(parts) > 1 and parts[0] == "RNL3":
+                    lines[i] = f"RNL3 NLA3Pos 0 {b_base_value * value}k\n"
 
             # Adjust values for target 'd'
             elif target == 'd':
-                if len(parts) > 1 and parts[0] == "R4":
-                    lines[i] = f"R4 0 Mult3Y2 {d_base_value * value}k\n"
-                elif len(parts) > 1 and parts[0] == "R5":
-                    lines[i] = f"R5 Mult3Y2 R5toR6 {d_base_value * (1-value)}k\n"
+                if len(parts) > 1 and parts[0] == "RNL4":
+                    lines[i] = f"RNL4 0 Mult3Y2 {d_base_value * value}k\n"
+                elif len(parts) > 1 and parts[0] == "RNL5":
+                    lines[i] = f"RNL5 Mult3Y2 R5toR6 {d_base_value * (1-value)}k\n"
+
+        # Write the updated lines back to the netlist file
+        with open(self.netlist_path, "w") as file:
+            file.writelines(lines)
+
+    def setInputFeedbackMix(self, mix):
+        mix = float(mix)
+        # This method allows us configure the ratio of feedback  to input mix. 
+        # mix: ratio of input to delay line. 
+        # E.g. 2 doubles the contribution of the input, halves the feedback. 
+
+        # Read all lines from the netlist file
+        with open(self.netlist_path, "r") as file:
+            lines = file.readlines()
+
+        # Iterate over lines to adjust values based on target
+        for i, line in enumerate(lines):
+            parts = line.strip().split()
+
+            if len(parts) > 1 and parts[0] == "EInScale":
+                lines[i] = f"EInScale VInScaled 0 vol = '(1.9 + (V(VIn) * 3.8)) * {round(mix, 3)}'\n"
+            elif len(parts) > 1 and parts[0] == "EFBScale":
+                lines[i] =f"EFBScale FeedbackScaled 0 vol = '(V(DLOut)/4.67 - 0.5) * {round(1/mix, 3)}'\n"
 
         # Write the updated lines back to the netlist file
         with open(self.netlist_path, "w") as file:
@@ -129,13 +155,16 @@ class Simulation:
     def change_component(self, name, value):
         if name in ("a", "b", "d"):
             self.setNLparams(name, value)
-        elif re.match(r'^R[A-Z0-9]{1,5}$', name):
+        elif re.match(r'^R[A-Z0-9]{1,6}$', name):
             self.setComponentValue(name, value)
         elif "PWL" in value:
             print("PWL detected! Changing " + name + " in file.")
             self.setComponentValue(name, value)
+        elif "mix" in name:
+            self.setInputFeedbackMix(value)
         else: 
             print("Error! Tried to change component, but didn't match any known format. ")
+            print("Component: " + name + ", Value: " + value)
             exit()
 
 
@@ -170,6 +199,30 @@ class Simulation:
         # Write the updated lines back to the netlist file
         with open(self.netlist_path, "w") as file:
             file.writelines(lines)
+
+    # IMPLEMENT
+    def setDelayLineLength(self, stage):
+        
+        # This method allows us configure the ratio of feedback  to input mix. 
+        # mix: ratio of input to delay line. 
+        # E.g. 2 doubles the contribution of the input, halves the feedback. 
+
+        # Read all lines from the netlist file
+        with open(self.netlist_path, "r") as file:
+            lines = file.readlines()
+
+        # Iterate over lines to adjust values based on target
+        for i, line in enumerate(lines):
+            if "DLOut" in line:
+                line.replace("DLOut", "Delay_LineDL" + stage)
+                print(line)
+
+        # Write the updated lines back to the netlist file
+        with open(self.netlist_path, "w") as file:
+            file.writelines(lines)
+    
+
+
 
         
     
@@ -227,19 +280,24 @@ class Simulation:
 
 
     def runSim(self):
+        components_to_print = ["a", "b", "d" "RNLF1", "RNLF2", "RIN1", "RIN2", "RIAF1", "RIAF2", "RINTAF1", "RINTAF2"]
+        print_components(self.netlist_path, components_to_print, "Output/KeyComponentValues.txt")
         path = self.append_control(self.netlist_path, self.control)
-        command = ["ngspice", path]
+        command = ["ngspice", path, "-b"]
+        print(command)
         subprocess.run(command)
         
 
 
 # Guard needed for multithreading. Program entry point. 
 if __name__ == "__main__":
+    # Reads in sim parameters from the config file. 
     nodes, command, params = parse_config("sim.config")
     sim_params = generate_parameters(nodes, command, params)
 
 # Run NgSpice simulation
-    with Pool(processes=3) as pool:
+
+    with Pool(processes=8) as pool:
         results = pool.map(worker, sim_params)
     with open('Output/run_config.csv', 'w', newline='') as csvfile:
         fieldnames = ['fileID', 'node', 'command', 'parameters']
