@@ -39,7 +39,8 @@ with open('Output/run_config.csv', 'r') as file:
             os.remove(path)
 
             score_dict[(param2_value, param1_value)] = score
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as e:
+            print(e)
             continue
 
 # Convert sets to sorted lists for consistent indexing
