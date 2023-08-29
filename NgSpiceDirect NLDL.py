@@ -24,7 +24,7 @@ from NetlistParser import *
 def worker(params):
     nodes, command, *param_names_and_values = params
     print(command)
-    netlist = "Subcircuits/CircuitWrapper"
+    netlist = "Subcircuits/CircuitWrapperNLDL"
     sim = Simulation(nodes, command, netlist, param_names_and_values)
     sim.runSim()
     os.remove(sim.netlist_path)
@@ -73,7 +73,8 @@ class Simulation:
             ".end"
         ]
 
-        self.unwrap_includes()
+        self.unwrap_include("PabloNLSolo.cir")
+        self.unwrap_include("DelayLine.cir")
 
         # Change the Parameters. 
         for i in range(0, len(param_names_and_values), 2):
@@ -128,7 +129,7 @@ class Simulation:
     def change_component(self, name, value):
         if name in ("a", "b", "d"):
             self.setNLparams(name, value)
-        elif re.match(r'^R[A-Z0-9]{1,3}$', name):
+        elif re.match(r'^R[A-Z0-9]{1,5}$', name):
             self.setComponentValue(name, value)
         elif "PWL" in value:
             print("PWL detected! Changing " + name + " in file.")
@@ -200,14 +201,14 @@ class Simulation:
 
         return temp_file_path
     
-    def unwrap_includes(self):
+    def unwrap_include(self, target_filename):
         new_content = []
 
         with open(self.netlist_path, 'r') as main_file:
             for line in main_file:
                 stripped_line = line.strip()
                 # Check for the .include directive
-                if stripped_line.startswith(".include"):
+                if stripped_line.startswith(".include") and stripped_line.endswith(target_filename):
                     # Extract path from the line
                     include_path = stripped_line.split()[-1]
                     # Read the .cir file

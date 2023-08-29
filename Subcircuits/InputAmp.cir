@@ -1,8 +1,11 @@
-V1 VDD 0 DC 12
-V2 VIn 0 DC 5
-V3 VNeg 0 DC -10 
+VDD VDD 0 DC 12
+VInput VIn 0 DC 2
+EInScale VInScaled 0 vol = '1.9 + (V(VIn) * 3.8)'
+EFBScale FeedbackScaled 0 vol = 'V(DLOut)/4.67 - 0.5'
+VNeg VNeg 0 DC -10 
 XIA InputAmpPos InputAmpNeg VDD VNeg IAOut AD712_AD
-RIN1 VIn InputAmpPos 1k
-RIN2 DLOut InputAmpPos 1k
-RIAF1 InputAmpNeg IAOut 2k
-RIAF2 InputAmpNeg GND 3k
+RIN1 VInScaled InputAmpPos 1k
+RIN2 FeedbackScaled InputAmpPos 1k
+RIAF1 InputAmpNeg IAOut 2000
+* Making one to ground bigger makes gain smaller. 
+RIAF2 InputAmpNeg GND 8000
