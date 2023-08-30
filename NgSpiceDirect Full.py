@@ -162,6 +162,9 @@ class Simulation:
             self.setComponentValue(name, value)
         elif "mix" in name:
             self.setInputFeedbackMix(value)
+        elif "delay" in name:
+            value = int(float(value))
+            self.setDelayTap(value)
         else: 
             print("Error! Tried to change component, but didn't match any known format. ")
             print("Component: " + name + ", Value: " + value)
@@ -200,12 +203,30 @@ class Simulation:
         with open(self.netlist_path, "w") as file:
             file.writelines(lines)
 
-    # IMPLEMENT
-    def set_input_delay_ratio(self, ratio):
-        print()
+    def setDelayTap(self, stage):
+
+        with open(self.netlist_path, "r") as file:
+            lines = file.readlines()
+
+        # Create a list to hold updated lines
+        updated_lines = []
+
+        # Iterate over lines to adjust
+        for index, line in enumerate(lines):
+            if "DLOut" in line:
+                # Replace and update the line
+                new_line = line.replace("DLOut", "Delay_LineDL" + str(stage))
+                updated_lines.append(new_line)
+            else:
+                # Append the original line if no replacement is made
+                updated_lines.append(line)
+
+        # Write the updated lines back to the netlist file
+        with open(self.netlist_path, "w") as file:
+            print(updated_lines)
+            file.writelines(updated_lines)
 
 
-        
     
     def append_control(self, filename, content_list):
         """
