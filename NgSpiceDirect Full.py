@@ -1,13 +1,15 @@
 import subprocess
 import os
 
-import tempfile
-import shutil
 import random
 
 from multiprocessing import Pool
 
 import re
+
+import csv
+
+import numpy as np
 
 from NetlistParser import *
 
@@ -45,6 +47,9 @@ def worker(params):
 class Simulation: 
     
     def __init__(self, nodes, simCommand, netlist, param_names_and_values):
+        # Generate strings for control command. 
+        self.originalNetlist = netlist
+        self.paramNamesAndValues = param_names_and_values
         param_str = ""
         nodes_str = "" .join(["V(" + node + ")" for node in nodes])
         # Generates the temp file for the altered netlist. 
@@ -83,49 +88,6 @@ class Simulation:
             name, value = param_names_and_values[i], param_names_and_values[i + 1]
             self.change_component(name, value)
 
-    def setNLparams(self, target, value):
-        value = float(value)
-        # This method allows us to configure key parameters of the NL circuit. 
-        # Targets: 
-        # a, b, d: ratio of two resistors, see circuit diagram
-
-        # Define configurable values
-        b_base_value = 10.0  # 10k for b components
-        d_base_value = 2.0  # 2k for d components
-
-        # Read all lines from the netlist file
-        with open(self.netlist_path, "r") as file:
-            lines = file.readlines()
-
-        # Iterate over lines to adjust values based on target
-        for i, line in enumerate(lines):
-            parts = line.strip().split()
-
-            # Adjust values for target 'a'
-            if target == 'a':
-                if len(parts) > 1 and parts[0] == "RNLF2":
-                    lines[i] = "RNLF2 NLA2Neg 0 1k\n"
-                elif len(parts) > 1 and parts[0] == "RNLF1":
-                    lines[i] = f"RNLF1 Mult1In NLA2Neg {value}k\n"
-
-            # Adjust values for target 'b'
-            elif target == 'b':
-                if len(parts) > 1 and parts[0] == "RNL2":
-                    lines[i] = f"RNL2 RtoPot NLA3Pos {b_base_value * (1-value)}k\n"
-                elif len(parts) > 1 and parts[0] == "RNL3":
-                    lines[i] = f"RNL3 NLA3Pos 0 {b_base_value * value}k\n"
-
-            # Adjust values for target 'd'
-            elif target == 'd':
-                if len(parts) > 1 and parts[0] == "RNL4":
-                    lines[i] = f"RNL4 0 Mult3Y2 {d_base_value * value}k\n"
-                elif len(parts) > 1 and parts[0] == "RNL5":
-                    lines[i] = f"RNL5 Mult3Y2 R5toR6 {d_base_value * (1-value)}k\n"
-
-        # Write the updated lines back to the netlist file
-        with open(self.netlist_path, "w") as file:
-            file.writelines(lines)
-
     def setInputFeedbackMix(self, mix):
         mix = float(mix)
         # This method allows us configure the ratio of feedback  to input mix. 
@@ -149,17 +111,16 @@ class Simulation:
         with open(self.netlist_path, "w") as file:
             file.writelines(lines)
 
-
     # Currently can handle the a, b, and d resistor ratios, and changing resistors. 
     # Can also specify the source for PWL input. 
     def change_component(self, name, value):
         if name in ("a", "b", "d"):
-            self.setNLparams(name, value)
+            setNLparams(self.netlist_path, name, value)
         elif re.match(r'^R[A-Z0-9]{1,6}$', name):
-            self.setComponentValue(name, value)
+            setComponentValue(self.netlist_path, name, value)
         elif "PWL" in value:
             print("PWL detected! Changing " + name + " in file.")
-            self.setComponentValue(name, value)
+            setComponentValue(self.netlist_path, name, value)
         elif "mix" in name:
             self.setInputFeedbackMix(value)
         elif "delay" in name:
@@ -169,39 +130,6 @@ class Simulation:
             print("Error! Tried to change component, but didn't match any known format. ")
             print("Component: " + name + ", Value: " + value)
             exit()
-
-
-    def setComponentValue(self, name, value):
-    # Changes a component value in the netlist. 
-    # Name must be the label at the start of th line, i.e. "R2"
-    # Note that scientific units will be left untouched. 
-    # Read all lines from the netlist file
-        with open(self.netlist_path, "r") as file:
-            lines = file.readlines()
-
-        # Check if the value provided has a unit (like 'k', 'm', etc.)
-        value_str = str(value)
-        if not value_str[-1].isdigit():
-            unit = value_str[-1]
-            numeric_part = value_str[:-1]
-        else:
-            unit = ""
-            numeric_part = value_str
-
-        # Iterate over lines to adjust values based on the provided name
-        for i, line in enumerate(lines):
-            parts = line.strip().split()
-
-            # Check if the first part of the line matches the provided name
-            if len(parts) > 1 and parts[0] == name:
-                # Replace the value in the circuit with the provided value
-                parts[-1] = numeric_part + unit
-                lines[i] = ' '.join(parts) + '\n'
-                break
-
-        # Write the updated lines back to the netlist file
-        with open(self.netlist_path, "w") as file:
-            file.writelines(lines)
 
     def setDelayTap(self, stage):
 
@@ -223,38 +151,7 @@ class Simulation:
 
         # Write the updated lines back to the netlist file
         with open(self.netlist_path, "w") as file:
-            print(updated_lines)
             file.writelines(updated_lines)
-
-
-    
-    def append_control(self, filename, content_list):
-        """
-        Copy contents of the given file and append a list of strings to a temporary file.
-
-        Parameters:
-        - filename (str): The path of the source file.
-        - content_list (List[str]): A list of strings to be appended to the file.
-
-        Returns:
-        - str: The path to the temporary file.
-        """
-        # Create a temporary file
-        temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w+t')
-
-        # Copy contents of the original file to the temp file
-        with open(filename, 'r') as f:
-            shutil.copyfileobj(f, temp_file)
-
-        # Add content from the list to the temp file
-        for line in content_list:
-            temp_file.write('\n' + line)
-
-        # Get the name of the temp file and close it
-        temp_file_path = temp_file.name
-        temp_file.close()
-
-        return temp_file_path
     
     def unwrap_include(self, target_filename):
         new_content = []
@@ -281,12 +178,73 @@ class Simulation:
             main_file.writelines(new_content)
 
 
+    def calculateRangeScaling(self):
+        sweepControl = self.control
+        for index, value in enumerate(sweepControl):
+            if "tran" in value:
+                sweepControl[index] = "dc VIn 0 10 1m"
+            
+            elif ".save" in value:
+                sweepControl[index] = ".save V(NLOut)"
+            elif "wrdata" in value:
+                parts = value.split()
+                outputFile = parts[1]
+                sweepControl[index] = parts[0] + " " + parts[1] + " " + "V(NLOut)"
+
+        # Create the netlist with just the NL circuit. 
+        sweepNetlistPath = self.originalNetlist + self.temp_id + "DCSweep" + ".cir"
+
+        with open("Subcircuits/PabloNLSolo.cir", "r") as f:
+            circuit = f.read()
+                
+        with open(sweepNetlistPath, "w") as file: 
+            file.write(circuit)
+        
+        # Change the Parameters. 
+        for i in range(0, len(self.paramNamesAndValues), 2):
+            name, value = self.paramNamesAndValues[i], self.paramNamesAndValues[i + 1]
+            if name in ("a", "b", "d"):
+                setNLparams(sweepNetlistPath, name, value)
+            elif re.match(r'^R[A-Z0-9]{1,6}$', name):
+                setComponentValue(sweepNetlistPath, name, value)
+
+        path = append_list_to_file(sweepNetlistPath, sweepControl)
+        command = ["ngspice", path, "-b"]
+        subprocess.run(command)
+
+        # Load your data
+        # Assuming your file is tab-separated and has two columns: input voltage and output voltage
+        data = np.loadtxt(outputFile)
+        input_voltage = data[:, 0]
+        output_voltage = data[:, 1]
+
+        # 1. Find the maximum output voltage and its corresponding input
+        max_output_index = np.argmax(output_voltage)
+        max_output = output_voltage[max_output_index]
+        corresponding_input_at_max = input_voltage[max_output_index]
+
+        # 2. Find the minimum input voltage that starts to produce a change
+        threshold_low = max_output / 5
+        min_input_index_low = np.where(output_voltage >= threshold_low)[0][0]
+        min_input_low = input_voltage[min_input_index_low]
+
+        # 3. Find the input voltage where the output returns close to zero after the peak
+        threshold_high = max_output / 5
+        min_input_index_high = np.where((output_voltage <= threshold_high) & (np.arange(len(output_voltage)) > max_output_index))[0][0]
+        min_input_high = input_voltage[min_input_index_high]
+
+        print(f"Maximum output voltage: {max_output} V, at input voltage: {corresponding_input_at_max} V")
+        print(f"Minimum input voltage that starts to produce a change: {min_input_low} V")
+        print(f"Input voltage where output returns close to zero after peak: {min_input_high} V")
+
+
     def runSim(self):
+        # Don't think printing system this works correctly - FIX. 
         components_to_print = ["a", "b", "d" "RNLF1", "RNLF2", "RIN1", "RIN2", "RIAF1", "RIAF2", "RINTAF1", "RINTAF2"]
         print_components(self.netlist_path, components_to_print, "Output/KeyComponentValues.txt")
-        path = self.append_control(self.netlist_path, self.control)
+        path = append_list_to_file(self.netlist_path, self.control)
+        self.calculateRangeScaling()
         command = ["ngspice", path, "-b"]
-        print(command)
         subprocess.run(command)
         
 
@@ -299,7 +257,7 @@ if __name__ == "__main__":
 
 # Run NgSpice simulation
 
-    with Pool(processes=8) as pool:
+    with Pool(processes=1) as pool:
         results = pool.map(worker, sim_params)
     with open('Output/run_config.csv', 'w', newline='') as csvfile:
         fieldnames = ['fileID', 'node', 'command', 'parameters']

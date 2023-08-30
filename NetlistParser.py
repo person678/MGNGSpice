@@ -1,6 +1,8 @@
 import itertools
 import os 
 import csv
+import tempfile
+import shutil
 
 # Parses the file specifying simulation parameters. 
 def parse_config(file_name):
@@ -160,6 +162,8 @@ def parse_value(value_str):
     return float(value_str[:-1]) * multiplier if multiplier != 1 else float(value_str)
 
 def print_components(netlist_path, components, output_file):
+
+
     extracted_data = []
     special_components = {"a": ["RNLF1", "RNLF2"], 
                            "b": ["RNL2", "RNL3"], 
@@ -198,3 +202,106 @@ def print_components(netlist_path, components, output_file):
         for name, value in resistors_values.items():
             if type(value) is not list:
                 f.write(f"{name} {value}\n")
+
+def setComponentValue(path, name, value):
+    # Changes a component value in the netlist. 
+    # Name must be the label at the start of th line, i.e. "R2"
+    # Note that scientific units will be left untouched. 
+    # Read all lines from the netlist file
+        with open(path, "r") as file:
+            lines = file.readlines()
+
+        # Check if the value provided has a unit (like 'k', 'm', etc.)
+        value_str = str(value)
+        if not value_str[-1].isdigit():
+            unit = value_str[-1]
+            numeric_part = value_str[:-1]
+        else:
+            unit = ""
+            numeric_part = value_str
+
+        # Iterate over lines to adjust values based on the provided name
+        for i, line in enumerate(lines):
+            parts = line.strip().split()
+
+            # Check if the first part of the line matches the provided name
+            if len(parts) > 1 and parts[0] == name:
+                # Replace the value in the circuit with the provided value
+                parts[-1] = numeric_part + unit
+                lines[i] = ' '.join(parts) + '\n'
+                break
+
+        # Write the updated lines back to the netlist file
+        with open(path, "w") as file:
+            file.writelines(lines)
+
+def setNLparams(path, target, value):
+        value = float(value)
+        # This method allows us to configure key parameters of the NL circuit. 
+        # Targets: 
+        # a, b, d: ratio of two resistors, see circuit diagram
+
+        # Define configurable values
+        b_base_value = 10.0  # 10k for b components
+        d_base_value = 2.0  # 2k for d components
+
+        # Read all lines from the netlist file
+        with open(path, "r") as file:
+            lines = file.readlines()
+
+        # Iterate over lines to adjust values based on target
+        for i, line in enumerate(lines):
+            parts = line.strip().split()
+
+            # Adjust values for target 'a'
+            if target == 'a':
+                if len(parts) > 1 and parts[0] == "RNLF2":
+                    lines[i] = "RNLF2 NLA2Neg 0 1k\n"
+                elif len(parts) > 1 and parts[0] == "RNLF1":
+                    lines[i] = f"RNLF1 Mult1In NLA2Neg {value}k\n"
+
+            # Adjust values for target 'b'
+            elif target == 'b':
+                if len(parts) > 1 and parts[0] == "RNL2":
+                    lines[i] = f"RNL2 RtoPot NLA3Pos {b_base_value * (1-value)}k\n"
+                elif len(parts) > 1 and parts[0] == "RNL3":
+                    lines[i] = f"RNL3 NLA3Pos 0 {b_base_value * value}k\n"
+
+            # Adjust values for target 'd'
+            elif target == 'd':
+                if len(parts) > 1 and parts[0] == "RNL4":
+                    lines[i] = f"RNL4 0 Mult3Y2 {d_base_value * value}k\n"
+                elif len(parts) > 1 and parts[0] == "RNL5":
+                    lines[i] = f"RNL5 Mult3Y2 R5toR6 {d_base_value * (1-value)}k\n"
+
+        # Write the updated lines back to the netlist file
+        with open(path, "w") as file:
+            file.writelines(lines)
+
+def append_list_to_file(filename, content_list):
+    """
+    Copy contents of the given file and append a list of strings to a temporary file.
+
+    Parameters:
+    - filename (str): The path of the source file.
+    - content_list (List[str]): A list of strings to be appended to the file.
+
+    Returns:
+    - str: The path to the temporary file.
+    """
+    # Create a temporary file
+    temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w+t')
+
+    # Copy contents of the original file to the temp file
+    with open(filename, 'r') as f:
+        shutil.copyfileobj(f, temp_file)
+
+    # Add content from the list to the temp file
+    for line in content_list:
+        temp_file.write('\n' + line)
+
+    # Get the name of the temp file and close it
+    temp_file_path = temp_file.name
+    temp_file.close()
+
+    return temp_file_path
