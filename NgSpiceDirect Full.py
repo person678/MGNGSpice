@@ -22,7 +22,8 @@ from NetlistParser import *
 def worker(params):
     nodes, command, *param_names_and_values = params
     netlist = "Subcircuits/CircuitWrapper"
-    sim = Simulation(nodes, command, netlist, param_names_and_values)
+    experimentName = "Sweep mix and d"
+    sim = Simulation(nodes, command, netlist, param_names_and_values, experimentName)
     sim.runSim()
     os.remove(sim.netlist_path)
 
@@ -46,15 +47,18 @@ def worker(params):
 
 class Simulation: 
     
-    def __init__(self, nodes, simCommand, netlist, param_names_and_values):
+    def __init__(self, nodes, simCommand, netlist, param_names_and_values, experimentName):
         # Generate strings for control command. 
         self.originalNetlist = netlist
         self.paramNamesAndValues = param_names_and_values
         nodes_str = "" .join(["V(" + node + ")" for node in nodes])
         # Generates the temp file for the altered netlist. 
         self.temp_id = str(random.randint(1, 100000))
-        wrdata_str = "wrdata Output/" + self.temp_id + ".txt " + nodes_str
-        self.netlist_path = netlist + self.temp_id + ".cir"
+        # Ensure the directory exists
+        if not os.path.exists("Output/" + experimentName):
+            os.makedirs("Output/" + experimentName)
+        wrdata_str = "wrdata Output/" + experimentName + "/"+ self.temp_id + ".txt " + nodes_str
+        self.netlist_path = "Output/" + experimentName + "/AlteredNetlist" + self.temp_id + ".cir"
         netlist = netlist + ".cir"
 
         with open(netlist, "r") as f:
@@ -213,7 +217,8 @@ class Simulation:
                 sweepControl[index] = parts[0] + " " + parts[1] + " " + "V(NLOut)"
 
         # Create the netlist with just the NL circuit. 
-        sweepNetlistPath = self.originalNetlist + self.temp_id + "DCSweep" + ".cir"
+        root, extension = os.path.splitext(self.netlist_path)
+        sweepNetlistPath = root +  "DCSweep" + ".cir"
 
         with open("Subcircuits/PabloNLSolo.cir", "r") as f:
             circuit = f.read()
