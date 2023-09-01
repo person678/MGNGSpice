@@ -50,7 +50,6 @@ class Simulation:
         # Generate strings for control command. 
         self.originalNetlist = netlist
         self.paramNamesAndValues = param_names_and_values
-        param_str = ""
         nodes_str = "" .join(["V(" + node + ")" for node in nodes])
         # Generates the temp file for the altered netlist. 
         self.temp_id = str(random.randint(1, 100000))
@@ -94,7 +93,19 @@ class Simulation:
         # mix: ratio of input to delay line. 
         # E.g. 2 doubles the contribution of the input, halves the feedback. 
 
-        # Read all lines from the netlist file
+        inputString = f"EInScale VInScaled 0 vol = '(1.9 + (V(VIn) * 3.8)) * {round(mix, 3)}'\n"
+        feedbackString = f"EFBScale FeedbackScaled 0 vol = '(V(DLOut)/4.67 - 0.5) * {round(1/mix, 3)}'\n"
+        self.setRangeScalingInNetlist(inputString, feedbackString)
+
+    def setRangeScalingInNetlist(self, inputRange, outputMax):
+    # Read all lines from the netlist file
+        try:
+            mix = round(float(self.mix), 3)
+        except:
+            print("Exception when trying to retrieve Mix value - assuming not provided in config file.")
+            print("Defaulting to equal mix.")
+            mix = 1
+
         with open(self.netlist_path, "r") as file:
             lines = file.readlines()
 
@@ -103,9 +114,17 @@ class Simulation:
             parts = line.strip().split()
 
             if len(parts) > 1 and parts[0] == "EInScale":
-                lines[i] = f"EInScale VInScaled 0 vol = '(1.9 + (V(VIn) * 3.8)) * {round(mix, 3)}'\n"
+                #lines[i] = f"EInScale VInScaled 0 vol = '(1.9 + (V(VIn) * 3.8)) * {round(mix, 3)}'\n"
+                newLine = "EInScale VInScaled 0 vol = "
+                eq = "'(" + str(round(inputRange/2, 3)) + " + (V(VIn) * " + str(inputRange) +")) * " + str(mix) + "'\n"
+                lines[i] = newLine + eq
+                continue
+
             elif len(parts) > 1 and parts[0] == "EFBScale":
-                lines[i] =f"EFBScale FeedbackScaled 0 vol = '(V(DLOut)/4.67 - 0.5) * {round(1/mix, 3)}'\n"
+                newLine = "EFBScale FeedbackScaled 0 vol = "
+                eq = "'(V(" + self.delayTap + ")" + "/" + str(outputMax) + "- 0.5 ) * " + str(round(1/mix, 3)) + "'\n"
+                lines[i] = newLine + eq
+                continue
 
         # Write the updated lines back to the netlist file
         with open(self.netlist_path, "w") as file:
@@ -122,7 +141,8 @@ class Simulation:
             print("PWL detected! Changing " + name + " in file.")
             setComponentValue(self.netlist_path, name, value)
         elif "mix" in name:
-            self.setInputFeedbackMix(value)
+            # This is set along with the range scaling later
+            self.mix = value
         elif "delay" in name:
             value = int(float(value))
             self.setDelayTap(value)
@@ -132,6 +152,7 @@ class Simulation:
             exit()
 
     def setDelayTap(self, stage):
+        self.delayTap = "Delay_LineDL" + str(stage)
 
         with open(self.netlist_path, "r") as file:
             lines = file.readlines()
@@ -143,7 +164,7 @@ class Simulation:
         for index, line in enumerate(lines):
             if "DLOut" in line:
                 # Replace and update the line
-                new_line = line.replace("DLOut", "Delay_LineDL" + str(stage))
+                new_line = line.replace("DLOut", self.delayTap)
                 updated_lines.append(new_line)
             else:
                 # Append the original line if no replacement is made
@@ -218,24 +239,33 @@ class Simulation:
         input_voltage = data[:, 0]
         output_voltage = data[:, 1]
 
+        # Compute the gradient of the output voltage with respect to the input voltage
+        gradient = np.gradient(output_voltage, input_voltage)
+
         # 1. Find the maximum output voltage and its corresponding input
         max_output_index = np.argmax(output_voltage)
         max_output = output_voltage[max_output_index]
-        corresponding_input_at_max = input_voltage[max_output_index]
+        input_at_max = input_voltage[max_output_index]
 
         # 2. Find the minimum input voltage that starts to produce a change
-        threshold_low = max_output / 5
-        min_input_index_low = np.where(output_voltage >= threshold_low)[0][0]
+        # Look for the index where the gradient first reduces to a tenth of its maximum value
+        max_gradient = np.max(np.abs(gradient))
+        threshold_low = max_gradient / 10
+        min_input_index_low = np.where(np.abs(gradient) >= threshold_low)[0][0]
         min_input_low = input_voltage[min_input_index_low]
 
         # 3. Find the input voltage where the output returns close to zero after the peak
-        threshold_high = max_output / 5
-        min_input_index_high = np.where((output_voltage <= threshold_high) & (np.arange(len(output_voltage)) > max_output_index))[0][0]
-        min_input_high = input_voltage[min_input_index_high]
+        # Look for the index where the gradient becomes positive and changes very slightly
+        for i in range(max_output_index + 1, len(gradient) - 1):
+            if gradient[i] > 0 and np.abs(gradient[i] - gradient[i+1]) < 1e-3:
+                min_input_high = input_voltage[i]
+                break
 
-        print(f"Maximum output voltage: {max_output} V, at input voltage: {corresponding_input_at_max} V")
+        print(f"Maximum output voltage: {max_output} V, at input voltage: {input_at_max} V")
         print(f"Minimum input voltage that starts to produce a change: {min_input_low} V")
         print(f"Input voltage where output returns close to zero after peak: {min_input_high} V")
+
+        return max_output, min_input_high
 
 
     def runSim(self):
@@ -243,7 +273,8 @@ class Simulation:
         components_to_print = ["a", "b", "d" "RNLF1", "RNLF2", "RIN1", "RIN2", "RIAF1", "RIAF2", "RINTAF1", "RINTAF2"]
         print_components(self.netlist_path, components_to_print, "Output/KeyComponentValues.txt")
         path = append_list_to_file(self.netlist_path, self.control)
-        self.calculateRangeScaling()
+        outputMax, inputRange = self.calculateRangeScaling()
+        self.setRangeScalingInNetlist(inputRange, outputMax)
         command = ["ngspice", path, "-b"]
         subprocess.run(command)
         
@@ -257,7 +288,7 @@ if __name__ == "__main__":
 
 # Run NgSpice simulation
 
-    with Pool(processes=1) as pool:
+    with Pool(processes=8) as pool:
         results = pool.map(worker, sim_params)
     with open('Output/run_config.csv', 'w', newline='') as csvfile:
         fieldnames = ['fileID', 'node', 'command', 'parameters']
