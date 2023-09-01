@@ -13,16 +13,18 @@ import numpy as np
 
 from NetlistParser import *
 
+
+netlist = "Subcircuits/CircuitWrapper"
+experimentName = "Sweep mix and d"
 #-------------------------------------------------------
 # MISC INFO
 #-------------------------------------------------------
 # Need to have "* Title TitleOfCircuit" line in circuit file for NGSpice to like it. 
 
-# This is for for batchprocessing. Ran once for each sim. 
+
+# This code is ran once per thread. 
 def worker(params):
     nodes, command, *param_names_and_values = params
-    netlist = "Subcircuits/CircuitWrapper"
-    experimentName = "Sweep mix and d"
     sim = Simulation(nodes, command, netlist, param_names_and_values, experimentName)
     sim.runSim()
     os.remove(sim.netlist_path)
@@ -80,13 +82,14 @@ class Simulation:
             ".end"
         ]
 
+        # Though spice works fine with include statements, easier to edit if all in one file. 
         self.unwrap_include("PabloNL.cir")
         self.unwrap_include("DelayLine.cir")
         self.unwrap_include("InputAmp.cir")
         self.unwrap_include("Integrator.cir")
 
 
-        # Change the Parameters. 
+        # Change the parameters in the netlist. 
         for i in range(0, len(param_names_and_values), 2):
             name, value = param_names_and_values[i], param_names_and_values[i + 1]
             self.change_component(name, value)
@@ -289,13 +292,16 @@ class Simulation:
 if __name__ == "__main__":
     # Reads in sim parameters from the config file. 
     nodes, command, params = parse_config("sim.config")
+    # Generates parameters from step, etc. 
     sim_params = generate_parameters(nodes, command, params)
 
 # Run NgSpice simulation
-
+# Change number of processes to be equal to number of simultaenous simulations. 
+# Unlikely to benefit from setting higher than number of physical cores in system. 
+# 3 second transient simulation takes several hours. 
     with Pool(processes=8) as pool:
         results = pool.map(worker, sim_params)
-    with open('Output/run_config.csv', 'w', newline='') as csvfile:
+    with open("Output/" + experimentName + "/run_config.csv", 'w', newline='') as csvfile:
         fieldnames = ['fileID', 'node', 'command', 'parameters']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         
