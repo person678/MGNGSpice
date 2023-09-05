@@ -6,24 +6,30 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
+EXPERIMENT_NAME = "Varying Mix and D"
+
+# Generates a heatmap using the two varying parameters in a run. Will not work correctly 
+# if more or less are present. 
 # Lists to store unique parameter values
 param1_values = set()
 param2_values = set()
 
-# Dictionary to store scores for combinations of RIAF1 and RIAF2
+# Dictionary to store scores
 score_dict = {}
 
-with open('Output/run_config.csv', 'r') as file:
+with open(f"Output/{EXPERIMENT_NAME}/run_config.csv", 'r') as file:
     reader = csv.reader(file)
     next(reader)  # Skip the header
     
     for row in reader:
         file_id, nodes_str, _, params = row
         nodes = eval(nodes_str)
-        file_name = f'Output/{file_id}.txt'
+        file_name = f'Output/{EXPERIMENT_NAME}/{file_id}.txt'
         param_list = eval(params)
         try:
-
+            # Looks for the first and third column for the parameter being varied. 
+            # Might be worth adding logic to make sure it ignores any constant parameters. 
+        
             param1_name = param_list[0]
             param2_name = param_list[2]
             
