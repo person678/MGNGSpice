@@ -15,7 +15,7 @@ from NetlistParser import *
 
 
 netlist = "Subcircuits/CircuitWrapper"
-experimentName = "Sweep mix and d"
+experimentName = "ShiftScalingSweepBDMix" # Spaces in this just causes problems - no spaces! 
 #-------------------------------------------------------
 # MISC INFO
 #-------------------------------------------------------
@@ -26,6 +26,7 @@ experimentName = "Sweep mix and d"
 def worker(params):
     nodes, command, *param_names_and_values = params
     sim = Simulation(nodes, command, netlist, param_names_and_values, experimentName)
+
     sim.runSim()
     os.remove(sim.netlist_path)
 
@@ -104,7 +105,7 @@ class Simulation:
         feedbackString = f"EFBScale FeedbackScaled 0 vol = '(V(DLOut)/4.67 - 0.5) * {round(1/mix, 3)}'\n"
         self.setRangeScalingInNetlist(inputString, feedbackString)
 
-    def setRangeScalingInNetlist(self, inputRange, outputMax):
+    def setRangeScalingInNetlist(self, inputRange, outputMax, input_at_max):
     # Read all lines from the netlist file
         try:
             mix = round(float(self.mix), 3)
@@ -123,7 +124,8 @@ class Simulation:
             if len(parts) > 1 and parts[0] == "EInScale":
                 #lines[i] = f"EInScale VInScaled 0 vol = '(1.9 + (V(VIn) * 3.8)) * {round(mix, 3)}'\n"
                 newLine = "EInScale VInScaled 0 vol = "
-                eq = "'(" + str(round(inputRange/2, 3)) + " + (V(VIn) * " + str(inputRange) +")) * " + str(mix) + "'\n"
+                #eq = "'(" + str(round(inputRange/2, 3)) + " + (V(VIn) * " + str(inputRange) +")) * " + str(mix) + "'\n"
+                eq = "'(" + str(round(inputRange/2.3, 3)) + " + V(VIn)) * " + str(mix) + "'\n"
                 lines[i] = newLine + eq
                 continue
 
@@ -133,6 +135,8 @@ class Simulation:
                 lines[i] = newLine + eq
                 continue
 
+        # Applies the correct gain for the scaling equation. Times by 2 to compensate for summing amp division. -1 is also to compensate for summing amp.
+        self.change_component("RIAF1", str(2 * (round(inputRange, 3) -1)))
         # Write the updated lines back to the netlist file
         with open(self.netlist_path, "w") as file:
             file.writelines(lines)
@@ -207,6 +211,7 @@ class Simulation:
 
 
     def calculateRangeScaling(self):
+        # Assumes control file has already been appended to netlist with a transient sim command
         sweepControl = self.control
         for index, value in enumerate(sweepControl):
             if "tran" in value:
@@ -215,9 +220,25 @@ class Simulation:
             elif ".save" in value:
                 sweepControl[index] = ".save V(NLOut)"
             elif "wrdata" in value:
-                parts = value.split()
-                outputFile = parts[1]
-                sweepControl[index] = parts[0] + " " + parts[1] + " " + "V(NLOut)"
+                # Find the position of ".txt" in the string
+                txt_pos = value.find('.txt')
+                
+                # If ".txt" is found
+                if txt_pos != -1:
+                    # Extract the file path, which starts after the first space and ends at ".txt" + 4 characters
+                    outputFile = value[value.index(" ") + 1 : txt_pos + 4]
+                    root, extension = os.path.splitext(outputFile)
+                    root = root + "DCSweep"
+                    outputFile = root + extension
+                    # Extract the command part (before the first space)
+                    command = value[:value.index(" ")]
+                    
+                    # Update sweepControl
+                    sweepControl[index] = f"{command} {outputFile} V(NLOut)"
+                
+                else:
+                    print("Error reading output file from control data. Check syntax?")
+                    exit()
 
         # Create the netlist with just the NL circuit. 
         root, extension = os.path.splitext(self.netlist_path)
@@ -273,7 +294,7 @@ class Simulation:
         print(f"Minimum input voltage that starts to produce a change: {min_input_low} V")
         print(f"Input voltage where output returns close to zero after peak: {min_input_high} V")
 
-        return max_output, min_input_high
+        return max_output, min_input_high, input_at_max
 
 
     def runSim(self):
@@ -281,8 +302,8 @@ class Simulation:
         components_to_print = ["a", "b", "d" "RNLF1", "RNLF2", "RIN1", "RIN2", "RIAF1", "RIAF2", "RINTAF1", "RINTAF2"]
         print_components(self.netlist_path, components_to_print, "Output/KeyComponentValues.txt")
         path = append_list_to_file(self.netlist_path, self.control)
-        outputMax, inputRange = self.calculateRangeScaling()
-        self.setRangeScalingInNetlist(inputRange, outputMax)
+        outputMax, inputRange, input_at_max = self.calculateRangeScaling()
+        self.setRangeScalingInNetlist(inputRange, outputMax, input_at_max)
         command = ["ngspice", path, "-b"]
         subprocess.run(command)
         
