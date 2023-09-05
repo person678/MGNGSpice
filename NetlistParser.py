@@ -4,6 +4,11 @@ import csv
 import tempfile
 import shutil
 
+# This file contains various methods for handling:
+# Parsing the config file. 
+# Generating parameters. 
+# Editing the netlist. 
+
 # Parses the file specifying simulation parameters. 
 def parse_config(file_name):
     """
@@ -12,6 +17,9 @@ def parse_config(file_name):
     Resistor stepping: syntax "Rx start value end value step value" "RX start 1000 end 2000 step 100"
     sim command: syntax "sim tran interval end" i.e. "sim tran 1m 1s"
     a, b or d resistor ratios: syntax "a start 1000 end 2000 step 100"
+    set commands: syntax "R1 set 1000" sets a component to that value for all runs
+    set input / feedback mix: syntax "mix set 0.5" or "mix start 0.1 stop 1 step 0.2", 
+    default is 1, higher number is more input lower feedback
     """
     params = {}
     nodes = []
