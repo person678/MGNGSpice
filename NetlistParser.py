@@ -286,30 +286,16 @@ def setNLparams(path, target, value):
         with open(path, "w") as file:
             file.writelines(lines)
 
-def append_list_to_file(filename, content_list):
+def append_list_to_file(filepath, list):
     """
-    Copy contents of the given file and append a list of strings to a temporary file.
-
-    Parameters:
-    - filename (str): The path of the source file.
-    - content_list (List[str]): A list of strings to be appended to the file.
-
-    Returns:
-    - str: The path to the temporary file.
+    Append copy of the given list to the end of the given file. 
     """
-    # Create a temporary file
-    temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w+t')
 
     # Copy contents of the original file to the temp file
-    with open(filename, 'r') as f:
-        shutil.copyfileobj(f, temp_file)
+    with open(filepath, 'a') as f:
+        f.write("\n")
+        # Add content from the list to the temp file
+        for line in list:
+            f.write(f"{line}\n")
 
-    # Add content from the list to the temp file
-    for line in content_list:
-        temp_file.write('\n' + line)
-
-    # Get the name of the temp file and close it
-    temp_file_path = temp_file.name
-    temp_file.close()
-
-    return temp_file_path
+    return filepath
