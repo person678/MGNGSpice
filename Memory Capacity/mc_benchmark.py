@@ -1,6 +1,7 @@
 import numpy as np
-
-
+ # Runs a MC benchmark on the file given. 
+ # File must just be a list of voltage readings - no timesteps needed. 
+ 
 def mc_benchmark(file_path):
     # Set up feedback strengths
     rep = np.arange(0, 51, 1)

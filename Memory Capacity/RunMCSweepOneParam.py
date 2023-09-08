@@ -5,11 +5,12 @@ import mc_benchmark as mc
 import matplotlib.pyplot as plt
 import os
 
+# Generates a graph using a varying parameters in a run. 
 # Lists to store parameter values and corresponding scores
 param_values = []
 scores = []
-
-with open('Output/run_config.csv', 'r') as file:
+EXPERIMENT_NAME = "TEST"
+with open("Output/" + EXPERIMENT_NAME + "/run_config.csv", 'r') as file:
     reader = csv.reader(file)
     next(reader)  # Skip the header
     
@@ -17,10 +18,9 @@ with open('Output/run_config.csv', 'r') as file:
         file_id, nodes_str, _, params = row
         nodes = eval(nodes_str)  # Convert string representation of list to actual list
         
-        file_name = f'Output/{file_id}.txt'
+        file_name = f'Output/{EXPERIMENT_NAME}/{file_id}.txt'
         param_list = eval(params)
         
-        # Find index of 'RIAF2' in the parameter list
         try:
             param_name = param_list[0] # Extract the parameter name
             param_value = float(param_list[1])  # Extract the value for the parameter

@@ -16,7 +16,7 @@ def prepare_output(filename, param):
     voltage = voltage[unique_indices]
 
     # Define the desired timestep
-    theta = 30e-6
+    theta = 29.08e-6
 
     # Define the times where you want to estimate voltage
     time_query = np.arange(0, np.max(time), theta)
