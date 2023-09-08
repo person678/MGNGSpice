@@ -86,7 +86,7 @@ L55 Net-_L54-Pad2_ Delay_LineDL28 10m
 L56 Delay_LineDL28 Net-_L56-Pad2_ 10m
 L57 Net-_L56-Pad2_ Delay_LineDL29 10m
 L58 Delay_LineDL29 Net-_L58-Pad2_ 10m
-L59 Net-_L58-Pad2_ DelayLineDL30 10m
-L60 DelayLineDL30 Net-_L60-Pad2_ 10m
+L59 Net-_L58-Pad2_ Delay_LineDL30 10m
+L60 Delay_LineDL30 Net-_L60-Pad2_ 10m
 RDLIn DLIn Net-_L1-Pad1_ 190
-RDLOut 0 Net-_L60-Pad2_ 190
+R30 0 Net-_L60-Pad2_ 190

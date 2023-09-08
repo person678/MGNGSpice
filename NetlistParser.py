@@ -112,7 +112,6 @@ def generate_parameters(nodes, command, config_params):
         sim_params.append((nodes, command, *param_and_values))
 
     return sim_params
-
 # Support method for generating list. Needed for handing stepped parameters. 
 def frange(start, end, step):
     current = start

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-EXPERIMENT_NAME = "Varying Mix and D"
+EXPERIMENT_NAME = "MoreAccurateThetaTest1"
 
 # Generates a heatmap using the two varying parameters in a run. Will not work correctly 
 # if more or less are present. 
@@ -63,7 +63,7 @@ for i, r1 in enumerate(param1_values):
 
 # Create a heatmap
 plt.figure(figsize=(10, 6))
-sns.heatmap(scores, annot=True, cmap='viridis', xticklabels=param2_values, yticklabels=param1_values)
+sns.heatmap(scores, annot=True, cmap='viridis', xticklabels=param2_values, yticklabels=param1_values, fmt='.2f')
 plt.xlabel(param2_name + ' Value')
 plt.ylabel(param1_name + ' Value')
 plt.title('Benchmark Score Heatmap')

@@ -15,7 +15,7 @@ from NetlistParser import *
 
 
 netlist = "Subcircuits/CircuitWrapper"
-experimentName = "ShiftScalingSweepBDMix" # Spaces in this just causes problems - no spaces! 
+experimentName = "MoreAccurateThetaTest1" # Spaces in this just causes problems - no spaces! 
 #-------------------------------------------------------
 # MISC INFO
 #-------------------------------------------------------
@@ -122,24 +122,33 @@ class Simulation:
             parts = line.strip().split()
 
             if len(parts) > 1 and parts[0] == "EInScale":
-                #lines[i] = f"EInScale VInScaled 0 vol = '(1.9 + (V(VIn) * 3.8)) * {round(mix, 3)}'\n"
+                # Compressing range - reducing maginitude with mix 
+                mix = 0.5
                 newLine = "EInScale VInScaled 0 vol = "
-                #eq = "'(" + str(round(inputRange/2, 3)) + " + (V(VIn) * " + str(inputRange) +")) * " + str(mix) + "'\n"
-                eq = "'(" + str(round(inputRange/2.3, 3)) + " + V(VIn)) * " + str(mix) + "'\n"
+                # Altering this equation allows us to shift the range the circuit operates in. Can see effect of changes with "GraphNLVoltageSpread" script.
+                #eq = f"'(" + str(round(inputRange/2, 3)) + " + V(VIn)) * " + str(mix) + "'\n"
+                eq = f"'(({str(round(inputRange/2.6, 3))} + V(VIn)) * {str(mix)})'\n"        
                 lines[i] = newLine + eq
                 continue
 
             elif len(parts) > 1 and parts[0] == "EFBScale":
+                # Compressing range - increasing magnitude with mix
+                mix = 2
                 newLine = "EFBScale FeedbackScaled 0 vol = "
-                eq = "'(V(" + self.delayTap + ")" + "/" + str(outputMax) + "- 0.5 ) * " + str(round(1/mix, 3)) + "'\n"
+                # Compressing Range - shift changed to -0.25 from -0.5, outputMax multiplied by 2
+                eq = "'(V(" + self.delayTap + ")" + "/" + str(round(outputMax, 3)) + "- 0.5) * " + str(round(1/mix, 3)) + "'\n"
                 lines[i] = newLine + eq
+                #lines[i] = f"EFBScale FeedbackScaled 0 vol = '(V({self.delayTap})/4.67 - 0.5) * {round(1/mix, 3)}'\n"
                 continue
 
-        # Applies the correct gain for the scaling equation. Times by 2 to compensate for summing amp division. -1 is also to compensate for summing amp.
-        self.change_component("RIAF1", str(2 * (round(inputRange, 3) -1)))
+        
         # Write the updated lines back to the netlist file
         with open(self.netlist_path, "w") as file:
             file.writelines(lines)
+        
+        # Applies the correct gain for the scaling equation. Remember summing amp is gain x average of inputs.  -1 is also to compensate for summing amp.
+        # Compressing Range - factor changed from 0.7 to 0.25
+        self.change_component("RIAF1", str((round(inputRange, 3) -1)* 1000 * 0.70))
 
     # Currently can handle the a, b, and d resistor ratios, and changing resistors. 
     # Can also specify the source for PWL input. 
@@ -154,6 +163,7 @@ class Simulation:
         elif "mix" in name:
             # This is set along with the range scaling later
             self.mix = value
+            #BROKEN - set manually in InputAmp subcircuit netlist. 
         elif "delay" in name:
             value = int(float(value))
             self.setDelayTap(value)
@@ -173,9 +183,9 @@ class Simulation:
 
         # Iterate over lines to adjust
         for index, line in enumerate(lines):
-            if "DLOut" in line:
+            if "V(DLOut" in line:
                 # Replace and update the line
-                new_line = line.replace("DLOut", self.delayTap)
+                new_line = line.replace("V(DLOut", "V(" +self.delayTap)
                 updated_lines.append(new_line)
             else:
                 # Append the original line if no replacement is made
@@ -298,13 +308,11 @@ class Simulation:
 
 
     def runSim(self):
-        # Don't think printing system this works correctly - FIX. 
-        components_to_print = ["a", "b", "d" "RNLF1", "RNLF2", "RIN1", "RIN2", "RIAF1", "RIAF2", "RINTAF1", "RINTAF2"]
-        print_components(self.netlist_path, components_to_print, "Output/KeyComponentValues.txt")
         path = append_list_to_file(self.netlist_path, self.control)
         outputMax, inputRange, input_at_max = self.calculateRangeScaling()
         self.setRangeScalingInNetlist(inputRange, outputMax, input_at_max)
         command = ["ngspice", path, "-b"]
+        shutil.copyfile(self.netlist_path, f"Output/{experimentName}/Netlist.txt")
         subprocess.run(command)
         
 

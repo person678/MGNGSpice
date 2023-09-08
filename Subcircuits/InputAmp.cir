@@ -1,7 +1,7 @@
 VDD VDD 0 DC 12
 VInput VIn 0 DC 2
 EInScale VInScaled 0 vol = '1.9 + V(VIn)'
-EFBScale FeedbackScaled 0 vol = 'V(DLOut)/4.67 - 0.5'
+EFBScale FeedbackScaled 0 vol = 'V(Delay_LineDL30)/4.67 - 0.5'
 VNeg VNeg 0 DC -10 
 XIA InputAmpPos InputAmpNeg VDD VNeg IAOut AD712_AD
 RIN1 VInScaled InputAmpPos 1k
